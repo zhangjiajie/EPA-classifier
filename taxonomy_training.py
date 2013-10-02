@@ -660,28 +660,6 @@ class trainning:
 
 
 
-class jsonparser:
-    def __init__(self, jsonfin):
-        self.jdata = json.load(open(jsonfin))
-    
-    def get_raxml_readable_tree(self, fout):
-        t = Tree(self.jdata["tree"], format=1)
-        t.unroot()
-        t.write(outfile=fout, format=5)
-    
-    def get_bid_tanomomy_map(self):
-        return self.jdata["taxonomy"]
-    
-    def get_alignment(self, fout):
-        soutput = ""
-        entries = self.jdata["sequences"]
-        for entr in entries:
-            soutput = soutput + ">" + entr[0] + "\n" + entr[1] + "\n"
-        with open(fout, "w") as fo:
-            fo.write(soutput)
-
-
-
 class epa_parser:
     def __init__(self, splacement_json, hasTaxonomy = False, sncbi_taxonomy = None, threshold=0.9):
         self.staxonomy = sncbi_taxonomy
