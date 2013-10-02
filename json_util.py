@@ -19,6 +19,10 @@ class jsonparser:
         else:
             return t.write(format=5)
     
+    def get_reftree(self):
+        t = Tree(self.jdata["tree"], format=1)
+        return t
+    
     def get_bid_tanomomy_map(self):
         return self.jdata["taxonomy"]
     

@@ -11,7 +11,8 @@ from json_util import jsonparser
 class magic:
     def __init__(self, refjson, query):
         self.refjson = jsonparser(refjson)
-        self.bid_taxonomy_map = self.refjson.get_bid_tanomomy_map(self)
+        self.bid_taxonomy_map = self.refjson.get_bid_tanomomy_map()
+        self.refree = self.refjson.get_reftree()
         self.query = query
     
     
