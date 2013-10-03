@@ -5,6 +5,7 @@ import json
 import operator
 from ete2 import Tree, TreeStyle, TextFace, SeqGroup
 from subprocess import call
+from taxonomy_parser import TreeBuilder
 
 
 class sequence:
