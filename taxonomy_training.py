@@ -571,6 +571,7 @@ class phylogeny_annotator:
     
     
     def annotate(self):
+        """Auto root function"""
         #find all bipartations:
         list_bipar = []
         #all_leaves = self.root.get_leaves()

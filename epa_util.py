@@ -51,6 +51,19 @@ class epa:
         os.remove(self.tmppath + "/" + "RAxML_originalLabelledTree." + self.name)
         #os.remove(self.tmppath + "/" + "RAxML_portableTree." + self.name + ".jplace")
         os.remove(self.tmppath + "/" + self.name + ".tre")
+     
+    def dummy(self, reftree, alignment):
+        seqs = SeqGroup(sequences=alignment, format='fasta')
+        entries = seqs.get_entries()
+        seq0 = entries[0][1]
+        dummyseq = seq0[:-50] + "A"*50
+        seqs.set_seq(name = "dummy", seq = dummyseq)
+        fout = self.tmppath + "/dummy" + self.name + ".fa"
+        seqs.write(format='fasta', outfile=fout) 
+        self.run(reftree = reftree, alignment = fout)
+        self.clean()
+        os.remove(fout)
+        return self.tmppath + "/" + "RAxML_portableTree." + self.name + ".jplace"
 
 
 class raxml:

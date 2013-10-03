@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from ete2 import Tree
+from ete2 import Tree, TreeNode
 
 
 class Taxa:
@@ -58,7 +58,7 @@ class TreeBuilder:
     
     
     def build(self):
-        root = Tree(name = "root") 
+        root = TreeNode(name = "root") 
         node_list = []
         node_list.append(root)
         for line in self.lines:
