@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import sys
 from ete2 import Tree, TreeNode
 
 
@@ -87,6 +88,11 @@ class TreeBuilder:
                 
             
 if __name__ == "__main__":
-    tb = TreeBuilder(flat_taxonomy_file = "training_tax.txt", fout = "training.tre")
+    if len(sys.argv) != 3: 
+        print("usage: ./taxonomy_parser.py <greengene_taxonomy> <outputfile>")
+        sys.exit()
+    
+    tb = TreeBuilder(flat_taxonomy_file = sys.argv[1], fout = sys.argv[2])
     tree = tb.build()
     tree.show()
+    

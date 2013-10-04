@@ -103,10 +103,11 @@ class raxml:
     
 
 if __name__ == "__main__":
-    print("This is main")
-    #EPA = epa()
-    #place = EPA.run(reftree = "/home/zhangje/GIT/EPA-classifier/example/t1.test.tre", alignment = "/home/zhangje/GIT/EPA-classifier/example/t1.fa")
-    #EPA.clean()
-    #print(place)
+    if len(sys.argv) < 3: 
+        print("usage: ./epa_util.py <multifurcating.tre> <outputfile>")
+        sys.exit()
     rx = raxml()
-    rx.resolve_mftree("/home/zhangje/GIT/EPA-classifier/example/training.tre", "/home/zhangje/GIT/EPA-classifier/example/training_seq.fa")
+    tree = rx.resolve_mftree(sys.argv[1], sys.argv[2])
+    rx.clean()
+    print("The resolved tree has been written to: ")
+    print(tree)

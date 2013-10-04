@@ -25,6 +25,31 @@ class sequence:
         self.seq_id = seq_id
         self.tax_id = tax_id
     
+    
+    def correct_rank_greengene(self):
+        if self.ranks[0] == "k__":
+            self.ranks[0:] = ["-"] * 7
+            return 
+        if self.ranks[1] == "p__":
+            self.ranks[1:] = ["-"] * 6
+            return 
+        if self.ranks[2] == "c__":
+            self.ranks[2:] = ["-"] * 5
+            return 
+        if self.ranks[3] == "o__":
+            self.ranks[3:] = ["-"] * 4
+            return
+        if self.ranks[4] == "f__":
+            self.ranks[4:] = ["-"] * 3
+            return
+        if self.ranks[5] == "g__":
+            self.ranks[5:] = ["-"] * 2
+            return
+        if self.ranks[6] == "s__":
+            self.ranks[6] = "-"
+            return
+    
+    
     def __str__(self):
         allranks = ""
         for r in reversed(self.ranks):
@@ -194,14 +219,15 @@ class seq_db:
             ranks = toks[1].split(";")
             for i in range(len(ranks)):
                 ranks[i]= ranks[i].strip()
-            #ranks.reverse()
             if len(ranks) == 7:
                 seq = sequence(seq_id = seqid)
                 seq.ranks = ranks
+                seq.correct_rank_greengene()
                 self.seq_list.append(seq)
             else:
                 print("incomplete rank for seq: " + seqid)
-
+                sys.exit()
+    
     """NCBI taxonomy support"""
     def init_db_from_file(self, sfin):
         fin = open(sfin)
@@ -288,7 +314,7 @@ class seq_db:
         for seq in self.seq_list:
             rks = seq.ranks
             for i, rk in enumerate(rks):
-                if rk!="":
+                if rk!="" and rk!="-":
                     rk_name_set.add((rk, i))
         return rk_name_set
     
@@ -297,8 +323,8 @@ class seq_db:
         for seq in self.seq_list:
             rks = seq.ranks
             for i, rk in enumerate(rks):
-                if rk!="":
-                    if i!=5:
+                if rk!="" and rk!="-":
+                    if i!=6:
                         rk_name_set.add((rk, i))
         return rk_name_set
     
@@ -310,16 +336,15 @@ class seq_db:
             rank_num_map = {}
             for seq in seq_list:
                 rkname = seq.ranks[i]
-                if rkname in rank_num_map:
-                    rank_num_map[rkname] = rank_num_map[rkname] + 1
-                else:
-                    rank_num_map[rkname] = 1
+                if rkname!="-":
+                    if rkname in rank_num_map:
+                        rank_num_map[rkname] = rank_num_map[rkname] + 1
+                    else:
+                        rank_num_map[rkname] = 1
             sorted_rank_num_map = sorted(rank_num_map.iteritems(), key=operator.itemgetter(1), reverse = True)
-            maxrank = list(sorted_rank_num_map[0])# = float(sorted_rank_num_map[0][1])/numseq
+            maxrank = list(sorted_rank_num_map[0])
             maxrank[1] = float(maxrank[1]) / numseq
             rank_stas[i] = maxrank
-        #rank_stas.reverse()
-        #print(rank_stas)
         return rank_stas
     
     def rank_abundance(self, seq_list, rank_name, rank_num):
@@ -334,6 +359,7 @@ class seq_db:
 
 
 class phylogeny_annotator:
+    """sphylogeny: birfurcating phlogenetic tree;  s_seq_db: greengene taxonomic flat file  """
     def __init__(self, sphylogeny, s_seq_db, t=0.99):
         self.tree_input = sphylogeny
         self.taxonomy_file = s_seq_db
@@ -360,9 +386,10 @@ class phylogeny_annotator:
         for leaf in leaves:
                 seq = self.seqs.get_seq_by_name(leaf.name)
                 rank_name = seq.ranks[rank_num]
-                if rank_name in rname_cnt_map:
+                if rank_name!="-":
+                    if rank_name in rname_cnt_map:
                         rname_cnt_map[rank_name] = rname_cnt_map[rank_name] + 1
-                else:
+                    else:
                         rname_cnt_map[rank_name] = 1 
         return rname_cnt_map
     
@@ -414,7 +441,8 @@ class phylogeny_annotator:
         for n in node.traverse(strategy = "preorder"):
             ranks = self.nid_ranks_map[n.nid]
             for rk in ranks:
-                nset.add(rk)
+                if rk!="-":
+                    nset.add(rk)
         return nset
     
     
@@ -460,7 +488,7 @@ class phylogeny_annotator:
         for leaf in all_leaves:
             leaf.add_feature("is_correct", "yes")
         
-        """traversal the tree to: 1. add node id nid 
+        """traversal the tree to: 1. add node id: nid 
                                   2. calculate the frequence table for each node/branch
                                   3. init ranks with "-"
         """
@@ -662,183 +690,6 @@ class trainning:
 
 
 
-class epa_parser:
-    def __init__(self, splacement_json, hasTaxonomy = False, sncbi_taxonomy = None, threshold=0.9):
-        self.staxonomy = sncbi_taxonomy
-        self.god = None
-        fin = open(splacement_json)
-        self.jdata = json.load(fin)
-        fin.close()
-        self.placements = self.jdata["placements"] #each placement is a map with two keys: 'n' - sequence name and 'p' - the placement info vector
-        #each placement info vector has 5 fields, position 0 is the branch name, position 2 is the likelihood weight
-        self.tree = self.jdata["tree"]
-        self.tree = self.tree.replace("{", "[&&NHX:B=")
-        self.tree = self.tree.replace("}", "]")
-        if hasTaxonomy:
-            self.bid_taxonomy_map = self.jdata["taxonomy"]
-            self.leafid_taxonomy_map = self.jdata["original_taxonomy"]
-        else:
-            self.god = phylogeny_annotator(self.tree, sncbi_taxonomy, threshold)
-        if self.god != None:
-            self.seqs = self.god.seqs
-        elif sncbi_taxonomy != None:
-            self.seqs = seq_db()
-            self.seqs.init_db_from_file(sncbi_taxonomy)
-            
-    def annotate_phylogeny(self, method = "1", output = ""):
-        if method == "1": #max-likelihood top down approach by Jiajie 
-            self.god.annotate_td()
-            self.god.correct_leaf_ranks()
-            if output!="":
-                self.dump_taxonomy(output)
-            else:
-                self.god.show_tree_with_rank()
-        elif method == "2":#something bottom up approach by Tomas
-            #tomas = CMislabel(self.tree, self.staxonomy)
-            #pa = phylogeny_annotator(self.tree, self.staxonomy)
-            #pa.root = tomas.t
-            #pa.nid_ranks_map = tomas.nid_ranks
-            #self.god = pa
-            self.god.annotate_bu()
-            if output!="":
-                self.dump_taxonomy(output)
-            else:
-                self.god.show_tree_with_rank()
-    
-    
-    def dump_taxonomy(self,sfout):
-        nid_ranks_map = self.god.nid_ranks_map
-        print(nid_ranks_map)
-        bid_ranks_map = {}
-        leaf_ranks_map = {} 
-        for node in self.god.root.traverse("postorder"):
-            #ranks = nid_ranks_map[node.nid]
-            ranks = nid_ranks_map.get(node.nid, ["-", "-", "-", "-", "-","-"])
-            #print rootnode
-            if hasattr(node, "B"):
-                bid = node.B
-                bid_ranks_map[bid] = ranks
-                if node.is_leaf():
-                    leaf_ranks_map[bid] = self.seqs.get_seq_by_name(node.name).ranks
-        self.jdata["taxonomy"] = bid_ranks_map
-        self.jdata["original_taxonomy"] = leaf_ranks_map
-        self.bid_taxonomy_map = bid_ranks_map
-        fout = open(sfout, "w")
-        json.dump(self.jdata, fout)
-    
-    def sum_lw_in_rank(self, rank_num, rank_name, e_lw_map):
-        lwsum = 0.0
-        #all_nodes = self.god.root.get_descendants()
-        #print("checking rank num: " + repr(rank_num) + " rank name:" + rank_name)
-        if rank_name == "" or rank_name == "-":
-            return 0.0
-        else:
-            for bid in self.bid_taxonomy_map.keys():
-                if self.bid_taxonomy_map[bid][rank_num] == rank_name:
-                    lw = e_lw_map[int(bid)]
-                    lwsum = lwsum + lw
-            #for node in all_nodes:
-            #    if self.god.nid_ranks_map[node.nid][rank_num] == rank_name:
-            #        if hasattr(node, "B"):
-            #            lw = e_lw_map[int(node.B)]
-            #            lwsum = lwsum + lw
-            return lwsum
-    
-    def placement_stas(self, p):
-        seq_name = p['n'][0]
-        place_vectors = p['p']
-        edge_lw_map = {}
-        for pv in place_vectors:
-            edge_lw_map[pv[0]] = pv[2]
-        #print(edge_lw_map)
-        seq = self.seqs.get_seq_by_name(seq_name)
-        human_ranks = seq.ranks
-        lw_per_rank = []
-        for i, rank in enumerate(human_ranks):
-            lw_per_rank.append(self.sum_lw_in_rank(rank_num=i, rank_name=rank, e_lw_map = edge_lw_map))
-        
-        print(seq_name)
-        print("Original taxonomy lables:            " +  human_ranks[0] + ">" + human_ranks[1] + ">"  + human_ranks[2] + ">"  + human_ranks[3] + ">"  + human_ranks[4] + ">"  + human_ranks[5])
-        print("LH-weight for each rank:" + str(lw_per_rank))
-        return human_ranks, lw_per_rank
-    
-    def exam_all_placements(self):
-        for place in self.placements:
-            h_ranks, h_lws = self.placement_stas(place)
-            b_ranks, b_lws, bestplace_bid = self.find_most_likely_ranks(place)
-            flag = self.check_for_mislabels(h_ranks, h_lws, b_ranks, b_lws)
-            if flag:
-                print("Potential misslabeled!!")
-                self.calculate_mislabels_distance(h_ranks, bestplace_bid)
-            print("----------------------------------------------------------------------------------------------------------------------")
-    
-    def find_most_likely_ranks(self, p):
-        #seq_name = p['n'][0]
-        place_vectors = p['p']
-        edge_lw_map = {}
-        for pv in place_vectors:
-            edge_lw_map[pv[0]] = pv[2]
-        bestplace_bid = place_vectors[0][0]
-        bestranks = self.bid_taxonomy_map[str(bestplace_bid)]
-        lw_per_rank = []
-        for i, rank in enumerate(bestranks):
-            lw_per_rank.append(self.sum_lw_in_rank(rank_num=i, rank_name=rank, e_lw_map = edge_lw_map))
-        
-        print("Best EPA placement taxonomy lables:    " +  bestranks[0] + ">" + bestranks[1] + ">"  + bestranks[2] + ">"  + bestranks[3] + ">"  + bestranks[4] + ">"  + bestranks[5])
-        print("LH-weight for each rank:" + str(lw_per_rank))
-        if str(bestplace_bid) in self.leafid_taxonomy_map:
-            ori_ranks = self.leafid_taxonomy_map[str(bestplace_bid)]
-            print("Best EPA placement on leaf:    " + ori_ranks[0] + ">" + ori_ranks[1] + ">"  + ori_ranks[2] + ">"  + ori_ranks[3] + ">"  + ori_ranks[4] + ">"  + ori_ranks[5])
-            leaf_lw = edge_lw_map[bestplace_bid]
-            print("Best EPA placement on leaf has LH-weight:    " + str(leaf_lw))
-        return bestranks, lw_per_rank, str(bestplace_bid)
-    
-    def check_for_mislabels(self, human_ranks, human_lws, best_ranks, best_lws):
-        error_flag = False
-        for i, human_rank in enumerate(human_ranks):
-            human_lw = human_lws[i]
-            best_rank = best_ranks[i]
-            best_lw = best_lws[i]
-            if (human_rank != best_rank) and best_lw > human_lw:
-                error_flag = True
-                break
-        return  error_flag
-    
-    def calculate_mislabels_distance(self, human_ranks, bestplace_bid):
-        t = Tree(self.tree, format = 1)
-        bestnode = t.search_nodes(B=bestplace_bid)[0]
-        #print("Best node: " + str(bestnode))
-        #find all nodes that match the original labels 
-        distance = []
-        node_distance = []
-        for i, rank in enumerate(human_ranks):
-            curr_rank_nodes = []
-            for bid in self.bid_taxonomy_map.keys():
-                curr_ranks = self.bid_taxonomy_map[bid]
-                if curr_ranks[i] == rank:
-                    if i == 5:
-                        curr_rank_nodes.append(t.search_nodes(B=str(bid))[0])
-                    else:
-                        #if curr_ranks[i+1] == "-":
-                        curr_rank_nodes.append(t.search_nodes(B=str(bid))[0])
-            num_nodes = float(len(curr_rank_nodes))
-            sumdis = 0.0
-            sumnodedis = 0.0
-            if num_nodes!=0.0:
-                for node in curr_rank_nodes:
-                    sumdis = sumdis + bestnode.get_distance(node)
-                    sumnodedis = sumnodedis + bestnode.get_distance(node,  topology_only=True)
-                distance.append(sumdis/num_nodes)
-                node_distance.append(sumnodedis/num_nodes)
-            else:
-                distance.append(0.0)
-                node_distance.append(0.0)
-        print("Average distance from best EPA-placement to original labeled ranks: \n        " + str(distance))
-        print("Average node distance from best EPA-placement to original labeled ranks: \n        " +str(node_distance))
-        return distance, node_distance
-
-
-
 class leave_one_test:
     """This class will do a leave one test on every sequence in the alignment"""
     def __init__(self, salignment, stree, staxonomy):
@@ -854,52 +705,12 @@ class leave_one_test:
         #target_node = self.tree.search_nodes(name = taxa_name)
         self.tree.prune([taxa_name])
         self.tree.write(outfile = taxa_name + ".tre", format = 5)
-        jsonfile = self.run_epa(newtree = taxa_name + ".tre")
-        epar = epa_parser(splacement_json= jsonfile, sncbi_taxonomy = self.taxonomy)
-        epar.annotate_phylogeny(method = "1", output = jsonfile + ".m1" )
-        epp2 = epa_parser(splacement_json = jsonfile + ".m1", sncbi_taxonomy = "self.taxonomy", hasTaxonomy = True)
-        epp2.exam_all_placements()
-        
-    
-    def run_epa(self, newtree):
-        # -s test.phy -t olaf_full.tre -n test -f v -m GTRGAMMA
-        call(["./raxmlHPC-SSE3","-m","GTRGAMMA","-f", "v","-s",self.salign,"-n",newtree,"-t", newtree])
-        os.remove("RAxML_classificationLikelihoodWeights." + newtree)
-        os.remove("RAxML_entropy." + newtree)
-        os.remove("RAxML_labelledTree." + newtree)
-        os.remove("RAxML_classification." + newtree)
-        os.remove("RAxML_info." + newtree)
-        os.remove("RAxML_originalLabelledTree." + newtree)
-        return "RAxML_portableTree." + newtree + ".jplace" 
-    
-    def find_errors(self):
-        for seq in self.alignment:
-            self.tree = Tree(self.stre)
-            seqname = seq[0]
-            self.prune_one_tax(seqname)
 
 
 
 if __name__ == "__main__":
-    #t = trainning(temp_epa_json = "t1.jplace", ref_seqs ="")
-    #t.raxml_readable_tree("t1.test.tre")
-    #pa = phylogeny_annotator(sphylogeny = "training_raxml.tre", s_seq_db = "training_tax.txt")
-    #pa.annotate()
-    #pa.root.set_outgroup("567510")
-    #pa.annotate_all_branches_td()
-    #pa.show_tree_with_rank()
-    
-    #t = trainning(temp_epa_json = "t1.jplace", ref_taxonomy = "training_tax.txt", ref_sequences = "t1.fa")
-    #t.trainning2json(fout = "tt.json")
-    jp = jsonparser("tt.json")
-    jp.get_raxml_readable_tree("jsontt.tre")
-    jp.get_alignment("jsontt.fa")
-    print(jp.get_bid_tanomomy_map())
-    
-    
     if len(sys.argv) != 6: 
         print("usage: ./ncbi_taxonomy.py <tree_of_life.tre> <id_name.txt> <id_rank.txt> <name_tax.txt> <outputfile>")
         sys.exit()
-    t = ncbi_taxa()
-    t.init_tax_tree(sys.argv[1], sys.argv[2], sys.argv[3])
-    t.extract_sub_tax_tree(sys.argv[4], sys.argv[5])
+    t = phylogeny_annotator(sphylogeny = sys.argv[1], s_seq_db = )
+    
