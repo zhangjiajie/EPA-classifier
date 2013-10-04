@@ -98,16 +98,14 @@ class raxml:
         os.remove(self.tmppath + "/" + "RAxML_info." + self.name)
         os.remove(self.tmppath + "/" + "RAxML_log." + self.name)
         os.remove(self.tmppath + "/" + "RAxML_result." + self.name)
-        
-    
-    
+
 
 if __name__ == "__main__":
     if len(sys.argv) < 3: 
-        print("usage: ./epa_util.py <multifurcating.tre> <outputfile>")
+        print("usage: ./epa_util.py <multifurcating.tre> <alignment> <num_thread>")
         sys.exit()
     rx = raxml()
-    tree = rx.resolve_mftree(sys.argv[1], sys.argv[2])
+    tree = rx.resolve_mftree(sys.argv[1], sys.argv[2], sys.argv[3])
     rx.clean()
     print("The resolved tree has been written to: ")
     print(tree)

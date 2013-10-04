@@ -12,13 +12,13 @@ class sequence:
     """Provide sequence id and ranks"""
     def __init__(self, seq_id, tax_id="0"):
         """
-           ranks[0] = species 
-           ranks[1] = genus
-           ranks[2] = family
+           ranks[6] = species 
+           ranks[5] = genus
+           ranks[4] = family
            ranks[3] = order
-           ranks[4] = class
-           ranks[5] = phylum 
-           ranks[6] = kindom
+           ranks[2] = class
+           ranks[1] = phylum 
+           ranks[0] = kindom
         """  
         self.ranks = [""]*7
         self.curr_ranks_idx = 0
@@ -52,13 +52,13 @@ class sequence:
     
     def __str__(self):
         allranks = ""
-        for r in reversed(self.ranks):
+        for r in self.ranks:
             allranks =  allranks + ";" + r
         allranks = allranks[1:]
         allranks = self.seq_id + "  " + allranks
         return allranks
 
-
+    """Not used"""
     def __assignRank(self, rank, name):
         name = name.replace(" ", "_")
         if rank == "species":
@@ -296,7 +296,7 @@ class seq_db:
             seq = sequence(seq_id = seqname, tax_id = taxid)
             seq.findMyRanksByDB(id_pid_map, id_rank_map, id_name_map)
             self.seq_list.append(seq)
-         
+    
     def to_file(self, sfout):
         fout = open(sfout, "w")
         for seq in self.seq_list:
@@ -310,6 +310,7 @@ class seq_db:
         return None    
     
     def get_all_rank_names(self):
+        """A lit of tubes (rank_name, rank_number)"""
         rk_name_set = set()
         for seq in self.seq_list:
             rks = seq.ranks
@@ -319,6 +320,7 @@ class seq_db:
         return rk_name_set
     
     def get_non_species_rank_names(self):
+        """A lit of tubes (rank_name, rank_number)"""
         rk_name_set = set()
         for seq in self.seq_list:
             rks = seq.ranks
@@ -336,11 +338,10 @@ class seq_db:
             rank_num_map = {}
             for seq in seq_list:
                 rkname = seq.ranks[i]
-                if rkname!="-":
-                    if rkname in rank_num_map:
-                        rank_num_map[rkname] = rank_num_map[rkname] + 1
-                    else:
-                        rank_num_map[rkname] = 1
+                if rkname in rank_num_map:
+                    rank_num_map[rkname] = rank_num_map[rkname] + 1
+                else:
+                    rank_num_map[rkname] = 1
             sorted_rank_num_map = sorted(rank_num_map.iteritems(), key=operator.itemgetter(1), reverse = True)
             maxrank = list(sorted_rank_num_map[0])
             maxrank[1] = float(maxrank[1]) / numseq
@@ -709,8 +710,10 @@ class leave_one_test:
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 6: 
-        print("usage: ./ncbi_taxonomy.py <tree_of_life.tre> <id_name.txt> <id_rank.txt> <name_tax.txt> <outputfile>")
+    if len(sys.argv) < 3: 
+        print("usage: ./taxonomy_training.py <bifurcating_phylogenetic.tre> <greengene flat taxonomy file>")
         sys.exit()
-    t = phylogeny_annotator(sphylogeny = sys.argv[1], s_seq_db = )
+    t = phylogeny_annotator(sphylogeny = sys.argv[1], s_seq_db = sys.argv[2])
+    t.annotate()
+    t.show_tree_with_rank()
     
