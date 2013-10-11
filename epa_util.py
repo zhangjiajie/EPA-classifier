@@ -28,18 +28,24 @@ class epa:
         self.name = str(time.time())
     
     
-    def run(self, reftree, alignment, num_thread = "2"):
+    def run(self, reftree, alignment, num_thread = "2", model = None ):
         #./raxmlHPC-PTHREADS-SSE3 -f v -m GTRGAMMA -s ../example/t1.fa -t ../example/t1.test.tre -p 1234 -n jjj -T 2
         if os.path.exists(reftree):
-            call([self.raxmlpath,"-f", "v", "-m","GTRGAMMA","-s",alignment,"-t", reftree, "-n",self.name,"-p", "1234", "-T", num_thread, "-w", self.tmppath] ) #, stdout=open(os.devnull, "w"), stderr=subprocess.STDOUT)
+            if model == None:
+                call([self.raxmlpath,"-f", "v", "-m","GTRGAMMA","-s",alignment,"-t", reftree, "-n",self.name,"-p", "1234", "-T", num_thread, "-w", self.tmppath] , stdout=open(os.devnull, "w"), stderr=open(os.devnull, "w"))
+            else:
+                call([self.raxmlpath,"-f", "v", "-G", "0.01", "-R", model, "-m","GTRGAMMA","-s",alignment,"-t", reftree, "-n",self.name,"-p", "1234", "-T", num_thread, "-w", self.tmppath] , stdout=open(os.devnull, "w"), stderr=open(os.devnull, "w"))
         else:
             tmptree = self.tmppath+"/" + self.name + ".tre"
             with open(tmptree, "w") as fout:
                 fout.write(reftree)
-            call([self.raxmlpath,"-f", "v", "-m","GTRGAMMA","-s",alignment,"-t", tmptree, "-n",self.name,"-p", "1234", "-T", num_thread, "-w", self.tmppath] ) #, stdout=open(os.devnull, "w"), stderr=subprocess.STDOUT)
-            
+            if model == None:
+                call([self.raxmlpath,"-f", "v", "-m","GTRGAMMA","-s",alignment,"-t", tmptree, "-n",self.name,"-p", "1234", "-T", num_thread, "-w", self.tmppath] , stdout=open(os.devnull, "w"), stderr=open(os.devnull, "w"))
+            else:
+                call([self.raxmlpath,"-f", "v", "-G", "0.01","-R", model, "-m","GTRGAMMA","-s",alignment,"-t", tmptree, "-n",self.name,"-p", "1234", "-T", num_thread, "-w", self.tmppath] , stdout=open(os.devnull, "w"), stderr=open(os.devnull, "w"))
+
         jp = jsonparser(self.tmppath + "/" + "RAxML_portableTree." + self.name + ".jplace")
-        return jp.get_placement()
+        return jp
     
     
     def clean(self):
@@ -93,7 +99,20 @@ class raxml:
                 fout.write(mftree)
             call([self.raxmlpath,"-m","GTRGAMMA","-s",alignment,"-g", tmptree, "-n",self.name,"-p", "1234", "-T", num_thread, "-w", self.tmppath] ) #, stdout=open(os.devnull, "w"), stderr=subprocess.STDOUT)
         return self.tmppath + "/" + "RAxML_bestTree." + self.name
+    
+    def get_model_parameters(self, bftree, alignment, num_thread = "2"):
+        #./raxmlHPC-AVX -f e -s 100.phy -m GTRGAMMA -t RAxML_bestTree.T1 -n Evaluate
+        #RAxML_binaryModelParameters.Evaluate
+        if os.path.exists(bftree):
+            call([self.raxmlpath, "-f", "e", "-m","GTRGAMMA","-t", bftree, "-s",alignment, "-n",self.name,"-p", "1234", "-T", num_thread, "-w", self.tmppath] ) #, stdout=open(os.devnull, "w"), stderr=subprocess.STDOUT)
+        else:
+            tmptree = self.tmppath+"/" + self.name + ".tre"
+            with open(tmptree, "w") as fout:
+                fout.write(bftree)
+            call([self.raxmlpath, "-f", "e", "-m","GTRGAMMA","-t", bftree, "-s",alignment, "-n",self.name,"-p", "1234", "-T", num_thread, "-w", self.tmppath] ) #, stdout=open(os.devnull, "w"), stderr=subprocess.STDOUT)
+        return self.tmppath + "/" + "RAxML_binaryModelParameters." + self.name
 
+        
     def clean(self):
         os.remove(self.tmppath + "/" + "RAxML_info." + self.name)
         os.remove(self.tmppath + "/" + "RAxML_log." + self.name)

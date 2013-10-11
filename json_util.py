@@ -13,7 +13,7 @@ class jsonparser:
     
     def get_raxml_readable_tree(self, fout = None):
         t = Tree(self.jdata["tree"], format=1)
-        t.unroot()
+        #t.unroot()
         if fout!=None:
             t.write(outfile=fout, format=5)
         else:
@@ -36,6 +36,12 @@ class jsonparser:
     
     def get_placement(self):
         return self.jdata["placements"]
+        
+    def get_std_newick_tree(self):
+        tree = self.jdata["tree"]
+        tree = tree.replace("{", "[&&NHX:B=")
+        tree = tree.replace("}", "]")
+        return tree
 
 
 if __name__ == "__main__":

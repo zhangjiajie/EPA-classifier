@@ -1,16 +1,25 @@
 #! /usr/bin/env python
-import sys
-import os
-import json
-import operator
-from ete2 import Tree, TreeStyle, TextFace, SeqGroup
-from subprocess import call
-from epa_util import epa
-from json_util import jsonparser
-from pprint import pprint
+try:
+    import sys
+    import os
+    import json
+    import operator
+    from ete2 import Tree, TreeStyle, TextFace, SeqGroup
+    from subprocess import call
+    from epa_util import epa
+    from json_util import jsonparser
+    from pprint import pprint
+except ImportError:
+    print("Please install the scipy and ETE package first.")
+    print("If your OS is ubuntu or has apt installed, you can try the following:") 
+    print(" sudo apt-get install python-setuptools python-numpy python-qt4 python-scipy python-mysqldb python-lxml python-matplotlib")
+    print(" sudo easy_install -U ete2")
+    print("Otherwise, please go to http://ete.cgenomics.org/ for instructions")
+    sys.exit()
 
 class magic:
-    def __init__(self, refjson, query):
+    def __init__(self, refjson, query, verbose = True):
+        self.v = verbose
         self.refjson = jsonparser(refjson)
         self.bid_taxonomy_map = self.refjson.get_bid_tanomomy_map()
         self.refree = self.refjson.get_reftree()
@@ -25,26 +34,26 @@ class magic:
         return True
 
 
-    def print_ranks(self, rks):
+    def print_ranks(self, rks, confs, minlw = 0.0):
         ss = ""
-        for rk in rks:
-            ss = ss + rk + ";"
-        return ss[:-1]
+        css = ""
+        for i in range(len(rks)):
+            conf = confs[i]
+            if conf == confs[0]:
+                conf = 1.0
+            if conf >= minlw:
+                ss = ss + rks[i] + ";"
+                css = css + repr(conf) + ";"
+            else:
+                break
+            
+        return ss[:-1] + "\t" + css[:-1] + "\n"
 
 
-    def print_confi(self, confs):
-        ss = ""
-        for rk in confs:
-            if rk == confs[0]:
-                rk = 1.0
-            ss = ss + repr(rk) + ";"
-        return ss[:-1]
-
-
-    def classify(self, fout = None):
+    def classify(self, fout = None, minlw = 0.0):
         self.checkinput()
         EPA = epa()
-        placements = EPA.run(reftree = self.refjson.get_raxml_readable_tree(), alignment = self.query)
+        placements = EPA.run(reftree = self.refjson.get_raxml_readable_tree(), alignment = self.query).get_placement()
         EPA.clean()
         if fout!=None:
             fo = open(fout, "w")
@@ -53,10 +62,12 @@ class magic:
             taxa_name = place["n"][0]
             edges = place["p"]
             ranks, lws = self.assign_taxonomy(edges)
-            output = taxa_name+ "\t" + self.print_ranks(ranks) + "\t" + self.print_confi(lws) + "\n"
-            print(output) 
+            output = taxa_name+ "\t" + self.print_ranks(ranks, lws, minlw)
+            if self.v:
+                print(output) 
             if fout!=None:
                 fo.write(output)
+        
         if fout!=None:
             fo.close()
 
@@ -108,8 +119,101 @@ class magic:
         return ml_ranks_copy, lws
 
 
+def print_options():
+    print("usage: ./epa_classifier.py -r example/reference.json -q example/query.fa")
+    print("Options:")
+    print("    -r reference                   Specify the reference alignment and taxonomy in json format.\n")
+    print("    -q query sequence              Specify the query seqeunces file.")
+    print("                                   If the query sequences are aligned to the reference alignment already, the epa_classifier will classify the queries to the lowest rank possible")
+    print("                                   If the query sequences are aligned, but not to the reference, then a profile alignment will be perfermed to merge the two alignments")
+    print("                                   If the query sequences are not aligned, then HMMER will be used to align the queries to the reference alignment. \n")
+    print("    -t min likelihood weight       A value between 0 and 1, the minimal sum of likelihood weight of an assignment to a specific rank.\n")
+    print("                                   This value represent a confidence measure of the assignment, any assignments below this value will be discarded")
+    print("                                   Default: 0 to output all possbile assignments.")
+    print("    -o outputfile                  Specify the file name for output.")
+    print("    -v                             Print the results on screen.")
+
+def require_muscle():
+    basepath = os.path.dirname(os.path.abspath(__file__))
+    if not os.path.exists(basepath + "/bin/muscle"):
+        print("The pipeline uses MUSCLE to merge alignment,")
+        print("please downlaod the programm from:")
+        print("http://www.drive5.com/muscle/downloads.htm")
+        print("Rename the executable to usearch and put it to bin/  \n")
+        sys.exit() 
+
+def require_hmmer():
+    basepath = os.path.dirname(os.path.abspath(__file__))
+    if not os.path.exists(basepath + "/bin/hmmbuild") or not os.path.exists(basepath + "/bin/hmmalign"):
+        print("The pipeline uses HAMMER to align the query seqeunces,")
+        print("please downlaod the programm from:")
+        print("http://hmmer.janelia.org/")
+        print("Copy the executables hmmbuild and hmmalign to bin/  \n")
+        sys.exit()
+
 if __name__ == "__main__":
-    print("This is main")
-    m = magic("/home/zhangje/GIT/EPA-classifier/example/tt.json", "/home/zhangje/GIT/EPA-classifier/example/t1.fa")
-    m.classify(fout = "/home/zhangje/GIT/EPA-classifier/example/taxout.txt")
+    #m = magic("/home/zhangje/GIT/EPA-classifier/example/tt.json", "/home/zhangje/GIT/EPA-classifier/example/t1.fa")
+    #m.classify(fout = "/home/zhangje/GIT/EPA-classifier/example/taxout.txt")
+    
+    if len(sys.argv) < 4: 
+        print_options()
+        sys.exit()
+    
+    sreference = ""
+    squery = ""
+    dminlw = 0.0
+    soutput = ""
+    verbose = False
+    
+    for i in range(len(sys.argv)):
+        if sys.argv[i] == "-r":
+            i = i + 1
+            sreference = sys.argv[i]
+        elif sys.argv[i] == "-q":
+            i = i + 1
+            squery = sys.argv[i]
+        elif sys.argv[i] == "-t":
+            i = i + 1
+            dminlw = float(sys.argv[i])
+        elif sys.argv[i] == "-o":
+            i = i + 1
+            soutput = int(sys.argv[i])
+        elif sys.argv[i] == "-v":
+            verbose = True
+        elif i == 0:
+            pass
+        elif sys.argv[i].startswith("-"):
+            print("Unknown options: " + sys.argv[i])
+            print_options()
+            sys.exit()
+    
+    if sreference == "":
+        print("Must specify the reference in json format!")
+        print_options()
+        sys.exit()
+    
+    if not os.path.exists(sreference):
+        print("Input reference json file does not exists")
+        print_options()
+        sys.exit()
+    
+    if squery == "":
+        print("The query can not be empty!")
+        print_options()
+        sys.exit()
+    
+    if not os.path.exists(squery):
+        print("Input query file does not exists")
+        print_options()
+        sys.exit()
+    
+    if soutput == "":
+        soutput = squery + ".assignment.txt"
+    
+    if dminlw < 0 or dminlw > 1.0:
+         dminlw = 0.0
+    
+    m = magic(refjson = sreference, query = squery, verbose = verbose)
+    m.classify(fout = soutput, minlw = dminlw)
+
     

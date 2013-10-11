@@ -6,6 +6,8 @@ import operator
 from ete2 import Tree, TreeStyle, TextFace, SeqGroup
 from subprocess import call
 from taxonomy_parser import TreeBuilder
+from epa_util import epa, raxml
+from json_util import jsonparser
 
 
 class sequence:
@@ -693,23 +695,93 @@ class trainning:
 
 class leave_one_test:
     """This class will do a leave one test on every sequence in the alignment"""
-    def __init__(self, salignment, stree, staxonomy):
+    def __init__(self, salignment, stree, model):
         self.salign = salignment
         self.stre = stree
-        self.taxonomy = staxonomy
         self.tree = Tree(stree)
-        self.alignment = SeqGroup(sequences=salignment, format='phylip_relaxed')
+        self.alignment = salignment
+        self.model = model
         
     
     def prune_one_tax(self, taxa_name):
-        #self.tree.delete(taxa_name)
-        #target_node = self.tree.search_nodes(name = taxa_name)
-        self.tree.prune([taxa_name])
-        self.tree.write(outfile = taxa_name + ".tre", format = 5)
+        self.tree = Tree(self.stre)
+        target_node = self.tree.search_nodes(name = taxa_name)[0]
+        parent = target_node.up
+        if parent.is_root():
+            return -1
+        else:
+            sister_leaf_names = parent.get_leaf_names()
+            sister_leaf_names.remove(taxa_name)
+            
+        target_node.delete(preserve_branch_length=True)
+        epa_tree = self.tree.write(format = 5)
+        EPA = epa()
+        jp = EPA.run(reftree = epa_tree, alignment = self.salign, model = self.model)
 
+        return self.check_placement(jp, sister_leaf_names)
+    
+    def check_placement(self, jp, location_leaf_names):
+        newtree = Tree(jp.get_std_newick_tree())
+        place_branch = str(jp.get_placement()[0]["p"][0][0])
+        place_node = newtree.search_nodes(B=place_branch)[0]
+        
+        loca_leaf_nodes = []
+        for n in location_leaf_names:
+            nodes = newtree.search_nodes(name = n)
+            loca_leaf_nodes.append(nodes[0])
+        
+        if len(loca_leaf_nodes) == 1:
+            old_node = loca_leaf_nodes[0]
+        else:
+            old_node = loca_leaf_nodes[0].get_common_ancestor(loca_leaf_nodes[1:])
+        
+        if old_node.is_root():
+            print("Wrong root in EPA tree")
+            return -1
+        else:
+            dis = old_node.get_distance(target= place_node, topology_only=True)
+            print("Placement distance:" + repr(dis))
+            return dis
+            
+def testlo(fjson):
+    jp = jsonparser(fjson)
+    align = "tempaln"
+    jp.get_alignment(align)
+    
+    t = jp.get_reftree()
+    names = t.get_leaf_names()
+    dissum = 0.0
+    for name in names:
+        lot = leave_one_test(align, jp.get_raxml_readable_tree())
+        dis = lot.prune_one_tax(name)
+        if dis >= 0:
+            dissum = dissum + dis
+    
+    print dissum/float(len(names))
+
+def testlo2(fjson):
+    #jp = jsonparser(fjson)
+    align = "/home/zhangje/GIT/EPA-classifier/example/testdata/clostridia_otu97/clostridia_otu97.fasta"
+    t = Tree("/home/zhangje/GIT/EPA-classifier/example/testdata/clostridia_otu97/tax.bf.tre")
+    EPA = epa()
+    RA = raxml()
+    fmodel = RA.get_model_parameters(bftree = "/home/zhangje/GIT/EPA-classifier/example/testdata/clostridia_otu97/tax.bf.tre", alignment = align)
+    #RA.clean()
+    
+    names = t.get_leaf_names()
+    dissum = 0.0
+    for name in names:
+        lot = leave_one_test(align, "/home/zhangje/GIT/EPA-classifier/example/testdata/clostridia_otu97/tax.bf.tre", fmodel)
+        dis = lot.prune_one_tax(name)
+        if dis >= 0:
+            dissum = dissum + dis
+    
+    print dissum/float(len(names))
 
 
 if __name__ == "__main__":
+    testlo2(fjson = "/home/zhangje/GIT/EPA-classifier/example/tt.json")
+    
     if len(sys.argv) < 3: 
         print("usage: ./taxonomy_training.py <bifurcating_phylogenetic.tre> <greengene flat taxonomy file>")
         sys.exit()
