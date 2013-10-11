@@ -130,7 +130,19 @@ class hmmer:
         final_query = self.parse_HMM(l_ref = ref_len, minl = lmin)
 
 
-
+class muscle:
+    def __init__(self):
+        self.basepath = os.path.dirname(os.path.abspath(__file__))
+        self.musclepath = self.basepath + "/bin/muscle"
+        self.tmppath = self.basepath + "/tmp"
+        self.name = str(time.time())
+        self.outname = self.tmppath + "/" + self.name + ".afa"
+    
+    def merge(self, aln1, aln2):
+        #muscle -profile -in1 existing_msa.afa -in2 new_seq.fa -out combined.afa
+        call([self.musclepath,"-profile", "-in1", aln1, "-in2", aln2, "-out", self.outname])
+        return self.outname
+    
 
 if __name__ == "__main__":
     print("This is main")
