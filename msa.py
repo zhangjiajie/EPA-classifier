@@ -122,7 +122,7 @@ class hmmer:
         return self.output
 
 
-    def hmm_alignment(ref_align, query, outfolder, lmin = 100, outname = "epa_ready"):
+    def hmm_alignment(ref_align, query, outfolder, lmin = 100):
         if not os.path.exists(self.refprofile):
             self.build_hmm_profile()
         self.hmm_align()

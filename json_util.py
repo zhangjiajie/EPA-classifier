@@ -26,13 +26,17 @@ class jsonparser:
     def get_bid_tanomomy_map(self):
         return self.jdata["taxonomy"]
     
-    def get_alignment(self, fout):
+    def get_alignment(self, fout, query = None):
         soutput = ""
         entries = self.jdata["sequences"]
         for entr in entries:
             soutput = soutput + ">" + entr[0] + "\n" + entr[1] + "\n"
         with open(fout, "w") as fo:
             fo.write(soutput)
+            
+    def get_alignment_length(self):
+        entries = self.jdata["sequences"]
+        return len(entries[0][1])
     
     def get_placement(self):
         return self.jdata["placements"]

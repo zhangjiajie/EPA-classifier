@@ -4,11 +4,13 @@ try:
     import os
     import json
     import operator
+    import time
     from ete2 import Tree, TreeStyle, TextFace, SeqGroup
     from subprocess import call
     from epa_util import epa
     from json_util import jsonparser
     from pprint import pprint
+    from msa import muscle
 except ImportError:
     print("Please install the scipy and ETE package first.")
     print("If your OS is ubuntu or has apt installed, you can try the following:") 
@@ -24,13 +26,55 @@ class magic:
         self.bid_taxonomy_map = self.refjson.get_bid_tanomomy_map()
         self.refree = self.refjson.get_reftree()
         self.query = query
+        self.basepath = os.path.dirname(os.path.abspath(__file__))
+        self.tmppath = self.basepath + "/tmp"
+        self.name = str(time.time())
+        self.tmp_refaln = self.tmppath + "/" + self.name + ".refaln"
+        self.epa_alignment = ""
 
 
-    def alignment(self):
+    def align_to_refenence(self):
+        pass
+        
+    
+    def merge_alignment(self, query_seqs):
         pass
 
+    def correct_conflicting_names(self, query_seqs):
+        pass
 
     def checkinput(self):
+        seqs = SeqGroup(sequences=self.query)
+        
+        self.correct_conflicting_names(query_seqs = seqs)
+        
+        entries = seqs.get_entries()
+        seql = len(entries[0][1])
+        aligned = True
+        for entri in entries[1:]:
+            l = len(entri[1])
+            if not seql == l:
+                aligned = False
+                break
+        
+        if aligned:
+            #check if aligned to ref
+            refalnl = self.refjson.get_alignment_length()
+            if refalnl == seql:
+                #Still need to merge the two alignment
+                
+                return True
+            else:
+                #merge alignment
+                refaln = self.refjson.get_alignment(fout = self.tmp_refaln)
+                m = muscle()
+                self.epa_alignment = m.merge(refaln, self.query)
+                
+        else:
+            #align to reference
+            self.align_to_refenence()
+        
+        
         return True
 
 
@@ -53,7 +97,7 @@ class magic:
     def classify(self, fout = None, minlw = 0.0):
         self.checkinput()
         EPA = epa()
-        placements = EPA.run(reftree = self.refjson.get_raxml_readable_tree(), alignment = self.query).get_placement()
+        placements = EPA.run(reftree = self.refjson.get_raxml_readable_tree(), alignment = self.epa_alignment).get_placement()
         EPA.clean()
         if fout!=None:
             fo = open(fout, "w")
