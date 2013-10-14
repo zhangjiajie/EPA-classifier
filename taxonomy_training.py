@@ -8,6 +8,7 @@ from subprocess import call
 from taxonomy_parser import TreeBuilder
 from epa_util import epa, raxml
 from json_util import jsonparser
+from msa import hmmer 
 
 
 class sequence:
@@ -687,6 +688,12 @@ class trainning:
                 seqs.append(entri)
             
         self.jdata["sequences"] = seqs
+        hmm = hmmer(refalign = self.ref_sequences)
+        fprofile = hmm.build_hmm_profile()
+        with open(fprofile) as fp:
+            lines = fp.readlines()
+        self.jdata["hmmprofile"] = lines
+        os.remove(fprofile)
         
         with open(fout, "w") as fo:
             json.dump(self.jdata, fo, indent=4, sort_keys=True)
@@ -780,8 +787,6 @@ def testlo2(fjson):
 
 
 if __name__ == "__main__":
-    testlo2(fjson = "/home/zhangje/GIT/EPA-classifier/example/tt.json")
-    
     if len(sys.argv) < 3: 
         print("usage: ./taxonomy_training.py <bifurcating_phylogenetic.tre> <greengene flat taxonomy file>")
         sys.exit()

@@ -26,14 +26,25 @@ class jsonparser:
     def get_bid_tanomomy_map(self):
         return self.jdata["taxonomy"]
     
-    def get_alignment(self, fout, query = None):
+    def get_alignment(self, fout):
         soutput = ""
         entries = self.jdata["sequences"]
         for entr in entries:
             soutput = soutput + ">" + entr[0] + "\n" + entr[1] + "\n"
         with open(fout, "w") as fo:
             fo.write(soutput)
-            
+        return fout
+    
+    def get_alignment_list(self):
+        return self.jdata["sequences"]
+    
+    def get_sequences_names(self):
+        nameset = set()
+        entries = self.jdata["sequences"]
+        for entr in entries:
+            nameset.add(entr[0])
+        return nameset
+    
     def get_alignment_length(self):
         entries = self.jdata["sequences"]
         return len(entries[0][1])
@@ -46,7 +57,12 @@ class jsonparser:
         tree = tree.replace("{", "[&&NHX:B=")
         tree = tree.replace("}", "]")
         return tree
-
+    
+    def get_hmm_profile(self, fout):
+        lines = self.jdata["hmmprofile"]
+        with open(fout, "w") as fo:
+            for line in lines:
+                fo.write(line)
 
 if __name__ == "__main__":
     jp = jsonparser("tt.json")

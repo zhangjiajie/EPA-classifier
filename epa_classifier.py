@@ -10,7 +10,7 @@ try:
     from epa_util import epa
     from json_util import jsonparser
     from pprint import pprint
-    from msa import muscle
+    from msa import muscle, hmmer
 except ImportError:
     print("Please install the scipy and ETE package first.")
     print("If your OS is ubuntu or has apt installed, you can try the following:") 
@@ -18,6 +18,7 @@ except ImportError:
     print(" sudo easy_install -U ete2")
     print("Otherwise, please go to http://ete.cgenomics.org/ for instructions")
     sys.exit()
+
 
 class magic:
     def __init__(self, refjson, query, verbose = True):
@@ -30,24 +31,51 @@ class magic:
         self.tmppath = self.basepath + "/tmp"
         self.name = str(time.time())
         self.tmp_refaln = self.tmppath + "/" + self.name + ".refaln"
-        self.epa_alignment = ""
+        self.epa_alignment = self.tmppath + "/" + self.name + ".afa"
+        self.hmmprofile = self.tmppath + "/" + self.name + ".hmmprofile"
 
+    def __del__(self):
+        self.remove(self.tmp_refaln)
+        self.remove(self.epa_alignment)
+        self.remove(self.hmmprofile)
+        
+    def remove(self, filename):
+        if os.path.exists(filename):
+            os.remove(filename)
 
     def align_to_refenence(self):
-        pass
-        
-    
+        self.refjson.get_hmm_profile(self.hmmprofile)
+        refaln = self.refjson.get_alignment(fout = self.tmp_refaln)
+        hm = hmmer(refalign = refaln , query = self.query, refprofile = self.hmmprofile)
+        self.epa_alignment = hm.align()
+
+
     def merge_alignment(self, query_seqs):
-        pass
+        refaln = self.refjson.get_alignment_list()
+        queryaln = query_seqs.get_entries()
+        with open(self.epa_alignment, "w") as fout:
+            for seq in refaln:
+                fout.write(">" + seq[0] + "\n" + seq[1] + "\n")
+            for seq in queryaln:
+                fout.write(">" + seq[0] + "\n" + seq[1] + "\n")
+
 
     def correct_conflicting_names(self, query_seqs):
-        pass
+        refnames = self.refjson.get_sequences_names()
+        cleanseqs = SeqGroup()
+        for entri in query_seqs.iter_entries():
+            if entri[0] not in refnames:
+                cleanseqs.set_seq(entri[0], entri[1])
+            else:
+                cleanseqs.set_seq(entri[0]+"_query", entri[1])
+        return cleanseqs
+
 
     def checkinput(self):
         seqs = SeqGroup(sequences=self.query)
-        
-        self.correct_conflicting_names(query_seqs = seqs)
-        
+        print("Checking query sequences for conflicting names ...")
+        seqs = self.correct_conflicting_names(query_seqs = seqs)
+        print("Checking if query sequences are aligned ...")
         entries = seqs.get_entries()
         seql = len(entries[0][1])
         aligned = True
@@ -58,24 +86,22 @@ class magic:
                 break
         
         if aligned:
-            #check if aligned to ref
+            print("Query sequences are aligned or there is only one query")
             refalnl = self.refjson.get_alignment_length()
             if refalnl == seql:
-                #Still need to merge the two alignment
-                
-                return True
+                print("Merging query alignment with reference alignment")
+                self.merge_alignment(seqs)
             else:
-                #merge alignment
+                print("Merging query alignment with reference alignment using MUSCLE")
+                require_muscle()
                 refaln = self.refjson.get_alignment(fout = self.tmp_refaln)
                 m = muscle()
                 self.epa_alignment = m.merge(refaln, self.query)
-                
         else:
-            #align to reference
+            print("Query sequences are not aligned")
+            print("Align query sequences to the reference alignment using HMMER")
+            require_hmmer()
             self.align_to_refenence()
-        
-        
-        return True
 
 
     def print_ranks(self, rks, confs, minlw = 0.0):
@@ -177,6 +203,7 @@ def print_options():
     print("    -o outputfile                  Specify the file name for output.")
     print("    -v                             Print the results on screen.")
 
+
 def require_muscle():
     basepath = os.path.dirname(os.path.abspath(__file__))
     if not os.path.exists(basepath + "/bin/muscle"):
@@ -186,6 +213,7 @@ def require_muscle():
         print("Rename the executable to usearch and put it to bin/  \n")
         sys.exit() 
 
+
 def require_hmmer():
     basepath = os.path.dirname(os.path.abspath(__file__))
     if not os.path.exists(basepath + "/bin/hmmbuild") or not os.path.exists(basepath + "/bin/hmmalign"):
@@ -194,6 +222,7 @@ def require_hmmer():
         print("http://hmmer.janelia.org/")
         print("Copy the executables hmmbuild and hmmalign to bin/  \n")
         sys.exit()
+
 
 if __name__ == "__main__":
     #m = magic("/home/zhangje/GIT/EPA-classifier/example/tt.json", "/home/zhangje/GIT/EPA-classifier/example/t1.fa")

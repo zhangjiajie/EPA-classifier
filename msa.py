@@ -8,7 +8,7 @@ from ete2 import Tree, TreeStyle, TextFace, SeqGroup
 from subprocess import call
 
 class hmmer:
-    def __init__(self, refalign, query, refprofile = None):
+    def __init__(self, refalign = None, query = None, refprofile = None):
         self.refalign = refalign
         self.query = query
         self.refprofile = refprofile
@@ -22,7 +22,20 @@ class hmmer:
         self.stockname = self.tmppath + "/" + self.name + ".stock"
         self.trimed = self.tmppath + "/" + self.name + ".trimed.afa"
         self.output = self.tmppath + "/" + self.name + ".aligned.afa"
-        
+        self.merged = self.tmppath + "/" + self.name + ".merged.afa"
+    
+    def remove(self, filename):
+        if os.path.exists(filename):
+            os.remove(filename)
+    
+    def __del__(self):
+        #self.remove(self.refprofile)
+        self.remove(self.stockname)
+        #self.remove(self.trimed)
+        #self.remove(self.output)
+        #self.remove(self.merged)
+        pass
+    
     def build_hmm_profile(self):
         #hmmbuild --informat afa refotu.hmm ref_outs_547.fas
         call([self.hmmbuildpath,"--informat", "afa", self.refprofile, self.refalign]) #, stdout=open(os.devnull, "w"), stderr=subprocess.STDOUT)
@@ -33,7 +46,7 @@ class hmmer:
         call([self.hmmalignpath,"-o", self.stockname, self.refprofile, self.query]) #, stdout=open(os.devnull, "w"), stderr=subprocess.STDOUT)
         return self.stockname
 
-    def trim_refalign_hmm(self):
+    def get_hmm_refalignment(self):
         sites = []
         hmp = open(self.refprofile)
         l = hmp.readline()
@@ -65,8 +78,7 @@ class hmmer:
                 fout.write(entr[1][pos-1])
             fout.write("\n")
         fout.close()
-    return self.trimed, len(sites)
-
+        return self.trimed, len(sites)
 
     def __processHMMseq(self, seqin):
         newseq = ""
@@ -78,7 +90,6 @@ class hmmer:
             elif s.isupper():
                 newseq = newseq + s
         return newseq
-
 
     def parse_HMM(self, l_ref, minl = 50):
         cnt = 0
@@ -96,12 +107,12 @@ class hmmer:
                 line = line.strip()
                 if cnt == 1:
                     l2 = line.split()
-                    ss = self.processHMMseq(l2[1])
+                    ss = self.__processHMMseq(l2[1])
                     seqs[l2[0]] = ss
                 else:
                     l2 = line.split()
                     seq = seqs[l2[0]]
-                    ss = self.processHMMseq(l2[1])
+                    ss = self.__processHMMseq(l2[1])
                     seqs[l2[0]] = seq + ss 
             line = fin.readline()
         fin.close()
@@ -121,13 +132,26 @@ class hmmer:
         fout.close()
         return self.output
 
-
-    def hmm_alignment(ref_align, query, outfolder, lmin = 100):
+    def hmm_alignment(self, ref_align, query, outfolder, lmin = 100):
         if not os.path.exists(self.refprofile):
             self.build_hmm_profile()
         self.hmm_align()
         final_ref, ref_len = self.trim_refalign_hmm()
         final_query = self.parse_HMM(l_ref = ref_len, minl = lmin)
+
+    def align(self):
+        #aquire reference alignment that hmm would use
+        refaln, numsite = self.get_hmm_refalignment()
+        #alignment
+        self.hmm_align()
+        #process alignment
+        queryaln = self.parse_HMM(l_ref = numsite)
+        #merge refrence and query alignment
+        merge_alignment(aln1 = refaln, aln2 = queryaln, fout = self.merged, numsites = numsite)
+        #delete intermediate files
+        os.remove(refaln)
+        os.remove(queryaln)
+        return self.merged
 
 
 class muscle:
@@ -142,7 +166,35 @@ class muscle:
         #muscle -profile -in1 existing_msa.afa -in2 new_seq.fa -out combined.afa
         call([self.musclepath,"-profile", "-in1", aln1, "-in2", aln2, "-out", self.outname])
         return self.outname
-    
+
+
+def merge_alignment(aln1, aln2, fout, numsites):
+    seqs1 = SeqGroup(aln1)
+    seqs2 = SeqGroup(aln2)
+    with open(fout, "w") as fo:
+        for seq in seqs1.iter_entries():
+            if len(seq[1].strip()) == numsites:
+                fo.write(">" + seq[0] + "\n" + seq[1] + "\n")
+            else:
+                print("Error in alignment ....")
+                sys.exit()
+        for seq in seqs2.iter_entries():
+            if len(seq[1].strip()) == numsites:
+                fo.write(">" + seq[0] + "\n" + seq[1] + "\n")
+            else:
+                print("Error in alignment ....")
+                sys.exit()
+
+def count_non_gap(seqin):
+    cnt = 0
+    for s in seqin:
+        if s!="-":
+            cnt = cnt + 1
+    return cnt
 
 if __name__ == "__main__":
     print("This is main")
+    hm = hmmer(refalign = "example/t1_trimed.fa")
+    #trimed = hm.process_ref_alignment()
+    pf = hm.build_hmm_profile()
+    print(pf)
