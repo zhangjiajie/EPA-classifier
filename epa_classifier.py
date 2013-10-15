@@ -7,10 +7,9 @@ try:
     import time
     from ete2 import Tree, TreeStyle, TextFace, SeqGroup
     from subprocess import call
-    from epa_util import epa
-    from json_util import jsonparser
-    from pprint import pprint
-    from msa import muscle, hmmer
+    from epac.epa_util import epa
+    from epac.json_util import jsonparser
+    from epac.msa import muscle, hmmer
 except ImportError:
     print("Please install the scipy and ETE package first.")
     print("If your OS is ubuntu or has apt installed, you can try the following:") 
@@ -29,7 +28,7 @@ class magic:
         self.refree = self.refjson.get_reftree()
         self.query = query
         self.basepath = os.path.dirname(os.path.abspath(__file__))
-        self.tmppath = self.basepath + "/tmp"
+        self.tmppath = self.basepath + "/epac/tmp"
         self.name = str(time.time())
         self.tmp_refaln = self.tmppath + "/" + self.name + ".refaln"
         self.epa_alignment = self.tmppath + "/" + self.name + ".afa"
@@ -263,17 +262,17 @@ def print_options():
 
 def require_muscle():
     basepath = os.path.dirname(os.path.abspath(__file__))
-    if not os.path.exists(basepath + "/bin/muscle"):
+    if not os.path.exists(basepath + "/epac/bin/muscle"):
         print("The pipeline uses MUSCLE to merge alignment,")
         print("please downlaod the programm from:")
         print("http://www.drive5.com/muscle/downloads.htm")
-        print("Rename the executable to usearch and put it to bin/  \n")
+        print("Rename the executable to usearch and put it to epac/bin/  \n")
         sys.exit() 
 
 
 def require_hmmer():
     basepath = os.path.dirname(os.path.abspath(__file__))
-    if not os.path.exists(basepath + "/bin/hmmbuild") or not os.path.exists(basepath + "/bin/hmmalign"):
+    if not os.path.exists(basepath + "/epac/bin/hmmbuild") or not os.path.exists(basepath + "/epac/bin/hmmalign"):
         print("The pipeline uses HAMMER to align the query seqeunces,")
         print("please downlaod the programm from:")
         print("http://hmmer.janelia.org/")

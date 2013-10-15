@@ -6,15 +6,15 @@ import operator
 import time
 from ete2 import Tree, TreeStyle, TextFace, SeqGroup
 from subprocess import call
-from json_util import jsonparser
-from taxonomy_parser import TreeBuilder
-from epa_util import raxml, epa
-from taxonomy_training import phylogeny_annotator, trainning
+from epac.json_util import jsonparser
+from epac.taxonomy_parser import TreeBuilder
+from epac.epa_util import raxml, epa
+from epac.taxonomy_training import phylogeny_annotator, trainning
 
 
 def auto_train(ref_taxonomy, ref_sequences, outfile):
     basepath = os.path.dirname(os.path.abspath(__file__))
-    tmppath = basepath + "/tmp"
+    tmppath = basepath + "/epac/tmp"
     if not os.path.exists(tmppath):
         print("The tmp folder for keeping intermediate files does not exit")
         print("Please create this folder:" + tmppath)
