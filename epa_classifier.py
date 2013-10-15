@@ -25,7 +25,7 @@ class magic:
         self.v = verbose
         self.refjson = jsonparser(refjson)
         self.bid_taxonomy_map = self.refjson.get_bid_tanomomy_map()
-        self.refree = self.refjson.get_reftree()
+        self.reftree = self.refjson.get_reftree()
         self.query = query
         self.basepath = os.path.dirname(os.path.abspath(__file__))
         self.tmppath = self.basepath + "/epac/tmp"
@@ -34,14 +34,17 @@ class magic:
         self.epa_alignment = self.tmppath + "/" + self.name + ".afa"
         self.hmmprofile = self.tmppath + "/" + self.name + ".hmmprofile"
 
+
     def __del__(self):
         self.remove(self.tmp_refaln)
         self.remove(self.epa_alignment)
         self.remove(self.hmmprofile)
-        
+    
+    
     def remove(self, filename):
         if os.path.exists(filename):
             os.remove(filename)
+
 
     def align_to_refenence(self):
         self.refjson.get_hmm_profile(self.hmmprofile)
