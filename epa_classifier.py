@@ -243,7 +243,7 @@ class magic:
 
 
 def print_options():
-    print("usage: ./epa_classifier.py -r example/reference.json -q example/query.fa")
+    print("usage: python epa_classifier.py -r example/reference.json -q example/query.fa -t 0.5 -v")
     print("Options:")
     print("    -r reference                   Specify the reference alignment and taxonomy in json format.\n")
     print("    -q query sequence              Specify the query seqeunces file.")
