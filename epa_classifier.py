@@ -21,7 +21,8 @@ except ImportError:
 
 
 class magic:
-    def __init__(self, refjson, query, verbose = True):
+    def __init__(self, refjson, query, verbose = True, numcpu = "2"):
+        self.numcpus = numcpu
         self.v = verbose
         self.refjson = jsonparser(refjson)
         self.bid_taxonomy_map = self.refjson.get_bid_tanomomy_map()
@@ -117,13 +118,13 @@ class magic:
             else:
                 break
             
-        return ss[:-1] + "\t" + css[:-1] + "\n"
+        return ss[:-1] + "\t" + css[:-1]
 
 
     def classify(self, fout = None, minlw = 0.0):
         self.checkinput()
         EPA = epa()
-        placements = EPA.run(reftree = self.refjson.get_raxml_readable_tree(), alignment = self.epa_alignment).get_placement()
+        placements = EPA.run(reftree = self.refjson.get_raxml_readable_tree(), alignment = self.epa_alignment, num_thread = self.numcpus).get_placement()
         EPA.clean()
         if fout!=None:
             fo = open(fout, "w")
@@ -132,15 +133,65 @@ class magic:
             taxa_name = place["n"][0]
             edges = place["p"]
             ranks, lws = self.assign_taxonomy(edges)
-            output = taxa_name+ "\t" + self.print_ranks(ranks, lws, minlw)
+            isnovo = self.novelty_check(place_edge = str(edges[0][0]), ranks =ranks, lws = lws, minlw = minlw)
+            if isnovo: 
+                output = taxa_name+ "\t" + self.print_ranks(ranks, lws, minlw) + "\t*"
+            else:
+                output = taxa_name+ "\t" + self.print_ranks(ranks, lws, minlw) + "\to"
             if self.v:
                 print(output) 
             if fout!=None:
-                fo.write(output)
+                fo.write(output + "\n")
         
         if fout!=None:
             fo.close()
-
+    
+    
+    def novelty_check(self, place_edge, ranks, lws, minlw):
+        """If the taxonomic assignment is not assigned to the genus level, 
+        we need to check if it is due to the incomplete reference taxonomy or 
+        it is likely to be something new:
+        
+        1. If the final ranks are assinged because of lw cut, that means with samller lw
+        the ranks can be further assinged to lowers. This indicate the undetermined ranks 
+        in the assignment is not due to the incomplete reference taxonomy, so the query 
+        sequence is likely to be something new.
+        
+        2. Otherwise We check all leaf nodes' immediate lower rank below this ml placement point, 
+        if they are not empty, output all ranks and indicate this could be novelty.
+        """
+        
+        lowrank = 0
+        for i in range(len(ranks)):
+            if i < 6:
+                """above genus level"""
+                rk = ranks[i]
+                lw = lws[i]
+                if rk == "-":
+                    break
+                else:
+                    lowrank = lowrank + 1
+                    if lw >=0 and lw < minlw:
+                        return True
+        
+        if lowrank >= 5 and not ranks[lowrank] == "-":
+            return False
+        else:
+            placenode = self.reftree.search_nodes(B = place_edge)[0]
+            if placenode.is_leaf():
+                return False
+            else:
+                leafnodes = placenode.get_leaves()
+                flag = True
+                for leaf in leafnodes:
+                    br_num = leaf.B
+                    branks = self.bid_taxonomy_map[br_num]
+                    if branks[lowrank] == "-":
+                        flag = False
+                        break
+                        
+                return flag
+    
 
     def assign_taxonomy(self, edges):
         #Calculate the sum of likelihood weight for each rank
@@ -194,14 +245,20 @@ def print_options():
     print("Options:")
     print("    -r reference                   Specify the reference alignment and taxonomy in json format.\n")
     print("    -q query sequence              Specify the query seqeunces file.")
-    print("                                   If the query sequences are aligned to the reference alignment already, the epa_classifier will classify the queries to the lowest rank possible")
-    print("                                   If the query sequences are aligned, but not to the reference, then a profile alignment will be perfermed to merge the two alignments")
-    print("                                   If the query sequences are not aligned, then HMMER will be used to align the queries to the reference alignment. \n")
-    print("    -t min likelihood weight       A value between 0 and 1, the minimal sum of likelihood weight of an assignment to a specific rank.\n")
-    print("                                   This value represent a confidence measure of the assignment, any assignments below this value will be discarded")
-    print("                                   Default: 0 to output all possbile assignments.")
-    print("    -o outputfile                  Specify the file name for output.")
-    print("    -v                             Print the results on screen.")
+    print("                                   If the query sequences are aligned to the reference alignment")
+    print("                                   already, the epa_classifier will classify the queries to the ")
+    print("                                   lowest rank possible. If the query sequences are aligned, but ")
+    print("                                   not to the reference, then a profile alignment will be perfermed")
+    print("                                   to merge the two alignments. If the query sequences are not ")
+    print("                                   aligned, then HMMER will be used to align the queries to the ")
+    print("                                   reference alignment. \n")
+    print("    -t min likelihood weight       A value between 0 and 1, the minimal sum of likelihood weight of ")
+    print("                                   an assignment to a specific rank. This value represent a confidence")
+    print("                                   measure of the assignment, any assignments below this value will ")
+    print("                                   be discarded.      Default: 0 to output all possbile assignments.\n")
+    print("    -o outputfile                  Specify the file name for output.\n")
+    print("    -v                             Print the results on screen.\n")
+    print("    -T numthread                   Specify the number of CPUs.\n")
 
 
 def require_muscle():
@@ -237,6 +294,7 @@ if __name__ == "__main__":
     dminlw = 0.0
     soutput = ""
     verbose = False
+    numcpus = "2"
     
     for i in range(len(sys.argv)):
         if sys.argv[i] == "-r":
@@ -251,6 +309,9 @@ if __name__ == "__main__":
         elif sys.argv[i] == "-o":
             i = i + 1
             soutput = int(sys.argv[i])
+        elif sys.argv[i] == "-T":
+            i = i + 1
+            numcpus = sys.argv[i]
         elif sys.argv[i] == "-v":
             verbose = True
         elif i == 0:
@@ -286,7 +347,7 @@ if __name__ == "__main__":
     if dminlw < 0 or dminlw > 1.0:
          dminlw = 0.0
     
-    m = magic(refjson = sreference, query = squery, verbose = verbose)
+    m = magic(refjson = sreference, query = squery, verbose = verbose, numcpu = numcpus)
     m.classify(fout = soutput, minlw = dminlw)
 
     
