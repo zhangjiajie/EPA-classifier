@@ -7,6 +7,79 @@ from ete2 import Tree, TreeStyle, TextFace, SeqGroup
 from subprocess import call
 
 
+class json_checker:
+    def __init__(self, jsonfin):
+        self.jdata = json.load(open(jsonfin))
+    
+    def valid(self, ver = "1.0"):
+        #tree
+        if "tree" in self.jdata:
+            tree = self.jdata["tree"]
+            if not isinstance(tree, str):
+                return False
+        else:
+            return False
+        
+        #raxmltree
+        if "raxmltree" in self.jdata:
+            tree = self.jdata["raxmltree"]
+            if not isinstance(tree, str):
+                return False
+        else:
+            return False
+            
+        #rate:
+        if "rate" in self.jdata:
+            rate = self.jdata["rate"]
+            if not isinstance(rate, float):
+                return False
+        else:
+            return False
+            
+        #node_height
+        if "node_height" in self.jdata:
+            node_height = self.jdata["node_height"]
+            if not isinstance(node_height, dict):
+                return False
+        else:
+            return False
+            
+        #taxonomy
+        if "taxonomy" in self.jdata:
+            taxonomy = self.jdata["taxonomy"]
+            if not isinstance(taxonomy, dict):
+                return False
+        else:
+            return False
+
+        #origin_taxonomy
+        if "origin_taxonomy" in self.jdata:
+            origin_taxonomy = self.jdata["origin_taxonomy"]
+            if not isinstance(origin_taxonomy, dict):
+                return False
+        else:
+            return False
+
+        #sequences
+        if "sequences" in self.jdata:
+            sequences = self.jdata["sequences"]
+            if not isinstance(sequences, list):
+                return False
+        else:
+            return False
+            
+        #hmm_profile
+        if "hmm_profile" in self.jdata:
+            hmm_profile = self.jdata["hmm_profile"]
+            if not isinstance(hmm_profile, list):
+                return False
+        else:
+            return False
+        
+        return True
+
+        
+
 class jsonparser:
     def __init__(self, jsonfin):
         self.jdata = json.load(open(jsonfin))
@@ -65,7 +138,6 @@ class jsonparser:
                 fo.write(line)
 
 if __name__ == "__main__":
-    jp = jsonparser("tt.json")
-    jp.get_raxml_readable_tree("jsontt.tre")
-    jp.get_alignment("jsontt.fa")
-    print(jp.get_bid_tanomomy_map())
+    jc = json_checker("../example/reference.json")
+    print jc.valid()
+    
