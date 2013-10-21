@@ -40,12 +40,13 @@ class magic:
         self.hmmprofile = self.tmppath + "/" + self.name + ".hmmprofile"
         self.min_confidence=0.2
 
+
     def __del__(self):
         self.remove(self.tmp_refaln)
         self.remove(self.epa_alignment)
         self.remove(self.hmmprofile)
-    
-    
+
+
     def remove(self, filename):
         if os.path.exists(filename):
             os.remove(filename)
@@ -110,6 +111,8 @@ class magic:
             print("Align query sequences to the reference alignment using HMMER")
             require_hmmer()
             self.align_to_refenence()
+        
+        print("Running EPA...")
 
 
     def print_ranks(self, rks, confs, minlw = 0.0):
@@ -124,11 +127,13 @@ class magic:
                 css = css + repr(conf) + ";"
             else:
                 break
-            
-        return ss[:-1] + "\t" + css[:-1]
+        if ss == "":
+            return None
+        else:
+            return ss[:-1] + "\t" + css[:-1]
 
 
-    def classify(self, fout = None, minlw = 0.0):
+    def classify(self, fout = None, method = "1", minlw = 0.0, pv = 0.02):
         self.checkinput()
         EPA = epa()
         placements = EPA.run(reftree = self.refjson.get_raxml_readable_tree(), alignment = self.epa_alignment, num_thread = self.numcpus).get_placement()
@@ -139,20 +144,32 @@ class magic:
         for place in placements:
             taxa_name = place["n"][0]
             edges = place["p"]
-            edges = self.erlang_filter(edges, p = 0.01)
+            edges = self.erlang_filter(edges, p = pv)
             if len(edges) > 0:
-                ranks, lws = self.assign_taxonomy_maxsum(edges)
-                isnovo = self.novelty_check(place_edge = str(edges[0][0]), ranks =ranks, lws = lws, minlw = minlw)
-                if isnovo: 
-                    output = taxa_name+ "\t" + self.print_ranks(ranks, lws, minlw) + "\t*"
+                if method == "1":
+                    ranks, lws = self.assign_taxonomy_maxsum(edges)
                 else:
-                    output = taxa_name+ "\t" + self.print_ranks(ranks, lws, minlw) + "\to"
+                    ranks, lws = self.assign_taxonomy(edges)
+                
+                isnovo = self.novelty_check(place_edge = str(edges[0][0]), ranks =ranks, lws = lws, minlw = minlw)
+                rankout = self.print_ranks(ranks, lws, minlw)
+                if rankout == None:
+                    output = taxa_name+ "\t\t\t?"
+                else:
+                    if isnovo: 
+                        output = taxa_name+ "\t" + self.print_ranks(ranks, lws, minlw) + "\t*"
+                    else:
+                        output = taxa_name+ "\t" + self.print_ranks(ranks, lws, minlw) + "\to"
                 if self.v:
                     print(output) 
                 if fout!=None:
                     fo.write(output + "\n")
             else:
-                print("Can not reliably determine taxonomic ranks for " + taxa_name)
+                output = taxa_name+ "\t\t\t?"
+                if self.v:
+                    print(output) 
+                if fout!=None:
+                    fo.write(output + "\n")
         
         if fout!=None:
             fo.close()
@@ -260,7 +277,8 @@ class magic:
             cnt = cnt + 1
             
         return ml_ranks_copy, lws
-        
+
+
     # this function sums up all LH-weights for each rank and takes the rank with the max. sum 
     def assign_taxonomy_maxsum(self, edges):
 
@@ -319,22 +337,26 @@ class magic:
 def print_options():
     print("usage: python epa_classifier.py -r example/reference.json -q example/query.fa -t 0.5 -v")
     print("Options:")
-    print("    -r reference                   Specify the reference alignment and taxonomy in json format.\n")
+    print("    -r reference                   Specify the reference alignment and  taxonomy  in  json  format.\n")
     print("    -q query sequence              Specify the query seqeunces file.")
-    print("                                   If the query sequences are aligned to the reference alignment")
-    print("                                   already, the epa_classifier will classify the queries to the ")
-    print("                                   lowest rank possible. If the query sequences are aligned, but ")
+    print("                                   If the query sequences are aligned to  the  reference  alignment")
+    print("                                   already, the epa_classifier will  classify the  queries  to  the")
+    print("                                   lowest rank possible. If the  query sequences  are aligned,  but")
     print("                                   not to the reference, then a profile alignment will be perfermed")
-    print("                                   to merge the two alignments. If the query sequences are not ")
-    print("                                   aligned, then HMMER will be used to align the queries to the ")
+    print("                                   to merge the two alignments. If  the  query  sequences  are  not")
+    print("                                   aligned, then HMMER will be used to align  the  queries  to  the")
     print("                                   reference alignment. \n")
-    print("    -t min likelihood weight       A value between 0 and 1, the minimal sum of likelihood weight of ")
-    print("                                   an assignment to a specific rank. This value represent a confidence")
-    print("                                   measure of the assignment, any assignments below this value will ")
-    print("                                   be discarded.      Default: 0 to output all possbile assignments.\n")
+    print("    -t min likelihood weight       A value between 0 and 1, the minimal sum of likelihood weight of")
+    print("                                   an assignment to a specific rank. This value represents a confi-")
+    print("                                   dence measure of the assignment,  assignments  below  this value")
+    print("                                   will be discarded. Default: 0 to output all possbile assignments.\n")
     print("    -o outputfile                  Specify the file name for output.\n")
-    print("    -v                             Print the results on screen.\n")
+    print("    -p p-value                     P-value for Erlang test.  Default: 0.02\n")
+    print("    -m method                      Assignment method 1 or 2")
+    print("                                   1: Max sum likelihood (default)")
+    print("                                   2: Max likelihood placement\n ")
     print("    -T numthread                   Specify the number of CPUs.\n")
+    print("    -v                             Print the results on screen.\n")
 
 
 def require_muscle():
@@ -358,9 +380,6 @@ def require_hmmer():
 
 
 if __name__ == "__main__":
-    #m = magic("/home/zhangje/GIT/EPA-classifier/example/tt.json", "/home/zhangje/GIT/EPA-classifier/example/t1.fa")
-    #m.classify(fout = "/home/zhangje/GIT/EPA-classifier/example/taxout.txt")
-    
     if len(sys.argv) < 4: 
         print_options()
         sys.exit()
@@ -371,6 +390,8 @@ if __name__ == "__main__":
     soutput = ""
     verbose = False
     numcpus = "2"
+    p_value = 0.02
+    method = "1"
     
     for i in range(len(sys.argv)):
         if sys.argv[i] == "-r":
@@ -388,6 +409,12 @@ if __name__ == "__main__":
         elif sys.argv[i] == "-T":
             i = i + 1
             numcpus = sys.argv[i]
+        elif sys.argv[i] == "-p":
+            i = i + 1
+            p_value = float(sys.argv[i])
+        elif sys.argv[i] == "-m":
+            i = i + 1
+            method = sys.argv[i]
         elif sys.argv[i] == "-v":
             verbose = True
         elif i == 0:
@@ -423,7 +450,23 @@ if __name__ == "__main__":
     if dminlw < 0 or dminlw > 1.0:
          dminlw = 0.0
     
+    if p_value < 0:
+        p_value = 0
+    
+    if not (method == "1" or method == "2"):
+        method == "1"
+    
+    print("EPA-classifier running with the following parameters:")
+    print(" Reference:....................." + sreference)
+    print(" Query:........................." + squery)
+    print(" Min likelihood weight:........." + str(dminlw))
+    print(" Assignment method:............." + method)
+    print(" P-value for Erlang test:......." + str(p_value))
+    print(" Number of threads:............." + numcpus)
+    print("Result will be write to:")
+    print(soutput)
+    
     m = magic(refjson = sreference, query = squery, verbose = verbose, numcpu = numcpus)
-    m.classify(fout = soutput, minlw = dminlw)
+    m.classify(fout = soutput, method = method, minlw = dminlw, pv = p_value)
 
     
