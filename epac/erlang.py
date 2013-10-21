@@ -1,8 +1,4 @@
 #! /usr/bin/env python
-import sys
-import os
-import json
-import operator
 import math
 from ete2 import Tree
 
@@ -30,7 +26,7 @@ class tree_param:
         #pruning the input tree such that each speices only appear once
         species = set()
         keepseqs = []
-        for name is self.taxonomy.keys():
+        for name in self.taxonomy.keys():
             ranks = self.taxonomy[name]
             sp = ranks[-1]
             if sp == "-":
@@ -39,11 +35,23 @@ class tree_param:
                 if not sp in species:
                     keepseqs.append(name)
                     species.add(sp)
-        #TODO
+        root = Tree(self.tree)
+        root.prune(keepseqs, preserve_branch_length=True)
+        sumbr = 0.0
+        cnt = 0.0 
+        for node in root.traverse(stratagy = "preorder"):
+            sumbr = sumbr + node.dist
+            cnt = cnt + 1.0
+        return float(cnt) / float(sumbr)
+       
+    def get_nodesheight(self):
+        nh_map = {}
+        for node in root.traverse(stratagy = "preorder"):
+            if hasattr(node, "B"):
+                height = node.get_farthest_leaf(topology_only=True)
+                nh_map[node.B] = height[1] + 1
         
-
-
-
+        return nh_map
 
 if __name__ == "__main__":
     print("This is erlang.py main")
