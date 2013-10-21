@@ -39,14 +39,15 @@ class tree_param:
         root.prune(keepseqs, preserve_branch_length=True)
         sumbr = 0.0
         cnt = 0.0 
-        for node in root.traverse(stratagy = "preorder"):
+        for node in root.traverse(strategy = "preorder"):
             sumbr = sumbr + node.dist
             cnt = cnt + 1.0
         return float(cnt) / float(sumbr)
        
     def get_nodesheight(self):
+        root = Tree(self.tree)
         nh_map = {}
-        for node in root.traverse(stratagy = "preorder"):
+        for node in root.traverse(strategy = "preorder"):
             if hasattr(node, "B"):
                 height = node.get_farthest_leaf(topology_only=True)
                 nh_map[node.B] = height[1] + 1

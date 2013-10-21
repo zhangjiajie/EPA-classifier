@@ -8,7 +8,8 @@ from subprocess import call
 from taxonomy_parser import TreeBuilder
 from epa_util import epa, raxml
 from json_util import jsonparser
-from msa import hmmer 
+from msa import hmmer
+from erlang import tree_param 
 
 
 class sequence:
@@ -230,6 +231,13 @@ class seq_db:
             else:
                 print("incomplete rank for seq: " + seqid)
                 sys.exit()
+    
+    def get_origin_taxonomy_map(self):
+        self.orign_taxonomy = {}
+        for seq in self.seq_list:
+            self.orign_taxonomy[seq.seq_id] = seq.ranks
+        return self.orign_taxonomy
+        
     
     """NCBI taxonomy support"""
     def init_db_from_file(self, sfin):
@@ -661,6 +669,8 @@ class trainning:
     def __init__(self, temp_epa_json, ref_taxonomy, ref_sequences):
         self.jdata = json.load(open(temp_epa_json))
         self.jdata.pop("placements", None)
+        self.jdata.pop("fields", None)
+        self.jdata.pop("version", None)
         self.ref_taxonomy = ref_taxonomy
         self.ref_sequences = ref_sequences
         self.tree = self.jdata["tree"]
@@ -680,6 +690,7 @@ class trainning:
                 bid_ranks_map[bid] = ranks
         self.jdata["taxonomy"] = bid_ranks_map
         self.jdata["tree"] = self.tree
+        self.jdata["raxmltree"] = Tree(self.tree, format=1).write(format=5)
         seqids = self.pa.root.get_leaf_names()
         seqs = []
         for entri in self.seqgroup.iter_entries():
@@ -692,8 +703,15 @@ class trainning:
         fprofile = hmm.build_hmm_profile()
         with open(fprofile) as fp:
             lines = fp.readlines()
-        self.jdata["hmmprofile"] = lines
+        self.jdata["hmm_profile"] = lines
         os.remove(fprofile)
+        self.jdata["origin_taxonomy"] = self.pa.seqs.get_origin_taxonomy_map()
+        
+        tp = tree_param(tree = self.tree, origin_taxonomy = self.jdata["origin_taxonomy"])
+        self.jdata["rate"] = tp.get_speciation_rate()
+        self.jdata["node_height"] = tp.get_nodesheight()
+        self.jdata["version"] = "1.0"
+        self.jdata["author"] = "Jiajie Zhang"
         
         with open(fout, "w") as fo:
             json.dump(self.jdata, fo, indent=4, sort_keys=True)

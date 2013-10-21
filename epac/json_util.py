@@ -15,7 +15,9 @@ class json_checker:
         #tree
         if "tree" in self.jdata:
             tree = self.jdata["tree"]
-            if not isinstance(tree, str):
+            if not isinstance(tree, unicode):
+                print("Tree is")
+                print(type(tree).__name__)
                 return False
         else:
             return False
@@ -23,7 +25,7 @@ class json_checker:
         #raxmltree
         if "raxmltree" in self.jdata:
             tree = self.jdata["raxmltree"]
-            if not isinstance(tree, str):
+            if not isinstance(tree, unicode):
                 return False
         else:
             return False
@@ -78,7 +80,6 @@ class json_checker:
         
         return True
 
-        
 
 class jsonparser:
     def __init__(self, jsonfin):
@@ -137,7 +138,14 @@ class jsonparser:
             for line in lines:
                 fo.write(line)
 
+
 if __name__ == "__main__":
-    jc = json_checker("../example/reference.json")
-    print jc.valid()
+    if len(sys.argv) < 2: 
+        print("usage: ./json_util.py jsonfile")
+        sys.exit()
+    jc = json_checker(sys.argv[1])
+    if jc.valid():
+        print("The json file is OK for EPA-classifer")
+    else:
+        print("!!!Invalid json file!!!")
     
