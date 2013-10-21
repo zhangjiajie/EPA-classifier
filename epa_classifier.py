@@ -10,6 +10,7 @@ try:
     from epac.epa_util import epa
     from epac.json_util import jsonparser
     from epac.msa import muscle, hmmer
+    from epac.erlang import erlang
 except ImportError:
     print("Please install the scipy and ETE package first.")
     print("If your OS is ubuntu or has apt installed, you can try the following:") 
@@ -26,8 +27,11 @@ class magic:
         self.refjson = jsonparser(refjson)
         self.bid_taxonomy_map = self.refjson.get_bid_tanomomy_map()
         self.reftree = self.refjson.get_reftree()
+        self.rate = self.refjson.get_rate()
+        self.node_height = self.refjson.get_node_height()
         self.query = query
         self.basepath = os.path.dirname(os.path.abspath(__file__))
+        self.erlang = erlang()
         self.tmppath = self.basepath + "/epac/tmp"
         self.name = str(time.time())
         self.tmp_refaln = self.tmppath + "/" + self.name + ".refaln"
@@ -112,7 +116,7 @@ class magic:
         css = ""
         for i in range(len(rks)):
             conf = confs[i]
-            if conf == confs[0]:
+            if conf == confs[0] and confs[0] >=0.99:
                 conf = 1.0
             if conf >= minlw:
                 ss = ss + rks[i] + ";"
@@ -134,19 +138,34 @@ class magic:
         for place in placements:
             taxa_name = place["n"][0]
             edges = place["p"]
-            ranks, lws = self.assign_taxonomy(edges)
-            isnovo = self.novelty_check(place_edge = str(edges[0][0]), ranks =ranks, lws = lws, minlw = minlw)
-            if isnovo: 
-                output = taxa_name+ "\t" + self.print_ranks(ranks, lws, minlw) + "\t*"
+            edges = self.erlang_filter(edges, p = 0.01)
+            if len(edges) > 0:
+                ranks, lws = self.assign_taxonomy(edges)
+                isnovo = self.novelty_check(place_edge = str(edges[0][0]), ranks =ranks, lws = lws, minlw = minlw)
+                if isnovo: 
+                    output = taxa_name+ "\t" + self.print_ranks(ranks, lws, minlw) + "\t*"
+                else:
+                    output = taxa_name+ "\t" + self.print_ranks(ranks, lws, minlw) + "\to"
+                if self.v:
+                    print(output) 
+                if fout!=None:
+                    fo.write(output + "\n")
             else:
-                output = taxa_name+ "\t" + self.print_ranks(ranks, lws, minlw) + "\to"
-            if self.v:
-                print(output) 
-            if fout!=None:
-                fo.write(output + "\n")
+                print("Can not reliably determine taxonomic ranks for " + taxa_name)
         
         if fout!=None:
             fo.close()
+    
+    
+    def erlang_filter(self, edges, p = 0.01):
+        newedges = []
+        for edge in edges:
+            edge_nr = str(edge[0])
+            pendant_length = edge[4]
+            pv = self.erlang.one_tail_test(rate = self.rate, k = int(self.node_height[edge_nr]), x = pendant_length)
+            if pv >= p:
+                newedges.append(edge)
+        return newedges
     
     
     def novelty_check(self, place_edge, ranks, lws, minlw):

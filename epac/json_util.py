@@ -85,6 +85,12 @@ class jsonparser:
     def __init__(self, jsonfin):
         self.jdata = json.load(open(jsonfin))
     
+    def get_rate(self):
+        return self.jdata["rate"]
+    
+    def get_node_height(self):
+        return self.jdata["node_height"]
+    
     def get_raxml_readable_tree(self, fout = None):
         t = Tree(self.jdata["tree"], format=1)
         #t.unroot()
@@ -133,7 +139,7 @@ class jsonparser:
         return tree
     
     def get_hmm_profile(self, fout):
-        lines = self.jdata["hmmprofile"]
+        lines = self.jdata["hmm_profile"]
         with open(fout, "w") as fo:
             for line in lines:
                 fo.write(line)

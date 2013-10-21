@@ -49,7 +49,8 @@ class tree_param:
         nh_map = {}
         for node in root.traverse(strategy = "preorder"):
             if hasattr(node, "B"):
-                height = node.get_farthest_leaf(topology_only=True)
+                height = node.get_closest_leaf(topology_only=True)
+                #height = node.get_farthest_leaf(topology_only=True)
                 nh_map[node.B] = height[1] + 1
         
         return nh_map
