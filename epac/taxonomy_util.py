@@ -40,9 +40,8 @@ def extrac_sequences(fin_taxonomy, fin_db, fout):
             fout.write(">" + tax + "\n")
             fout.write(seq)
         
-             
-    
-
+class TaxonomyUtils:
+    EMPTY_RANK = "-"
 
 if __name__ == "__main__":
     #extrac_trainning_taxonomy(fin = "testdata/gg_clostridia_tax.txt", fout_train = "training_tax.txt", fout_test = "testing_tax.txt")

@@ -6,7 +6,7 @@
         "distal_length", 
         "pendant_length"
     ], 
-    "hmmprofile": [
+    "hmm_profile": [
         "HMMER3/f [3.1b1 | May 2013]\n", 
         "NAME  training_seq\n", 
         "LENG  1375\n", 

@@ -11,6 +11,7 @@ try:
     from epac.json_util import jsonparser
     from epac.msa import muscle, hmmer
     from epac.erlang import erlang
+    from epac.taxonomy_util import TaxonomyUtils
 except ImportError:
     print("Please install the scipy and ETE package first.")
     print("If your OS is ubuntu or has apt installed, you can try the following:") 
@@ -37,7 +38,7 @@ class magic:
         self.tmp_refaln = self.tmppath + "/" + self.name + ".refaln"
         self.epa_alignment = self.tmppath + "/" + self.name + ".afa"
         self.hmmprofile = self.tmppath + "/" + self.name + ".hmmprofile"
-
+        self.min_confidence=0.2
 
     def __del__(self):
         self.remove(self.tmp_refaln)
@@ -140,7 +141,7 @@ class magic:
             edges = place["p"]
             edges = self.erlang_filter(edges, p = 0.01)
             if len(edges) > 0:
-                ranks, lws = self.assign_taxonomy(edges)
+                ranks, lws = self.assign_taxonomy_maxsum(edges)
                 isnovo = self.novelty_check(place_edge = str(edges[0][0]), ranks =ranks, lws = lws, minlw = minlw)
                 if isnovo: 
                     output = taxa_name+ "\t" + self.print_ranks(ranks, lws, minlw) + "\t*"
@@ -157,7 +158,7 @@ class magic:
             fo.close()
     
     
-    def erlang_filter(self, edges, p = 0.01):
+    def erlang_filter(self, edges, p = 0.02):
         newedges = []
         for edge in edges:
             edge_nr = str(edge[0])
@@ -259,6 +260,60 @@ class magic:
             cnt = cnt + 1
             
         return ml_ranks_copy, lws
+        
+    # this function sums up all LH-weights for each rank and takes the rank with the max. sum 
+    def assign_taxonomy_maxsum(self, edges):
+
+        # in EPA result, each placement(=branch) has a "weight"
+        # since we are interested in taxonomic placement, we do not care about branch vs. branch comparisons,
+        # but only consider rank vs. rank (e. g. G1 S1 vs. G1 S2 vs. G1)
+        # Thus we accumulate weights for each rank, there are to measures:
+        # "own" weight  = sum of weight of all placements EXACTLY to this rank (e.g. for G1: G1 only)
+        # "total" rank  = own rank + own rank of all children (for G1: G1 or G1 S1 or G1 S2)
+        rw_own = {}
+        rw_total = {}
+        rb = {}
+        
+        for edge in edges:
+            br_id = str(edge[0])
+            lweight = edge[2]
+            
+            # accumulate weight for the current sequence                
+            ranks = self.bid_taxonomy_map[br_id]
+            for i in range(len(ranks)):
+                rank = ranks[i]
+                if rank != TaxonomyUtils.EMPTY_RANK:
+                    rw_total[rank] = rw_total.get(rank, 0) + lweight
+                    lowest_rank = rank
+                    if not rank in rb:
+                        rb[rank] = br_id
+                else:
+                    break
+            
+            rw_own[lowest_rank] = rw_own.get(lowest_rank, 0) + lweight
+            rb[lowest_rank] = br_id
+
+        # we assign the sequence to a rank, which has the max "own" weight AND 
+        # whose "total" weight is greater than a confidence threshold
+        max_rw = 0.
+        for r in rw_own.iterkeys():
+            if rw_own[r] > max_rw and rw_total[r] >= self.min_confidence:
+                s_r = r
+                max_rw = rw_own[r] 
+        if not s_r:
+            s_r = max(rw_total.iterkeys(), key=(lambda key: rw_total[key]))
+
+        a_br_id = rb[s_r]
+        a_ranks = self.bid_taxonomy_map[a_br_id]
+
+        # "total" weight is considered as confidence value for now
+        a_conf = [0.] * len(a_ranks)
+        for i in range(len(a_conf)):
+            rank = a_ranks[i]
+            if rank != TaxonomyUtils.EMPTY_RANK:
+                a_conf[i] = rw_total[rank]
+
+        return a_ranks, a_conf
 
 
 def print_options():
@@ -286,7 +341,7 @@ def require_muscle():
     basepath = os.path.dirname(os.path.abspath(__file__))
     if not os.path.exists(basepath + "/epac/bin/muscle"):
         print("The pipeline uses MUSCLE to merge alignment,")
-        print("please downlaod the programm from:")
+        print("please download the programm from:")
         print("http://www.drive5.com/muscle/downloads.htm")
         print("Rename the executable to usearch and put it to epac/bin/  \n")
         sys.exit() 
@@ -296,7 +351,7 @@ def require_hmmer():
     basepath = os.path.dirname(os.path.abspath(__file__))
     if not os.path.exists(basepath + "/epac/bin/hmmbuild") or not os.path.exists(basepath + "/epac/bin/hmmalign"):
         print("The pipeline uses HAMMER to align the query seqeunces,")
-        print("please downlaod the programm from:")
+        print("please download the programm from:")
         print("http://hmmer.janelia.org/")
         print("Copy the executables hmmbuild and hmmalign to bin/  \n")
         sys.exit()
