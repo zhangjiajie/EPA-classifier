@@ -48,4 +48,4 @@ def auto_train(ref_taxonomy, ref_sequences, outfile):
     
 if __name__ == "__main__":
     print("This is main")
-    auto_train(ref_taxonomy = "/home/zhangje/GIT/EPA-classifier/example/training_tax.txt", ref_sequences = "/home/zhangje/GIT/EPA-classifier/example/training_seq.fa", outfile = "/home/zhangje/GIT/EPA-classifier/example/auto1.json")
+    auto_train(ref_taxonomy = "/home/zhangje/GIT/EPA-classifier/example/training_tax.txt", ref_sequences = "/home/zhangje/GIT/EPA-classifier/example/training_seq.fa", outfile = "/home/zhangje/GIT/EPA-classifier/example/auto2.json")
