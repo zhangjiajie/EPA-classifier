@@ -22,3 +22,12 @@ EPA-classifier
        likely due to the incomplete information in the reference.  
     
 
+(4) Download and install.
+
+    Linux 64bit (due to precompiled RAxML, muscle, and hmmer binary)
+    python>=2.5 (python 3 is not supported)
+    
+
+(5) Version
+
+    EPA-classifier is still under development.
