@@ -3,8 +3,7 @@ import sys
 import os
 import json
 import operator
-from coretype.seqgroup import SeqGroup
-from coretype.tree import Tree
+from epac.ete2 import SeqGroup,Tree
 from subprocess import call
 from taxonomy_parser import TreeBuilder
 from epa_util import epa, raxml
