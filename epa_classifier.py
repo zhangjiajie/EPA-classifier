@@ -67,17 +67,6 @@ class magic:
                 fout.write(">" + str(sid) + "\n" + seq + "\n")
 
 
-    def correct_conflicting_names(self, query_seqs):
-        refnames = self.refjson.get_sequences_names()
-        cleanseqs = SeqGroup()
-        for entri in query_seqs.iter_entries():
-            if entri[0] not in refnames:
-                cleanseqs.set_seq(entri[0], entri[1])
-            else:
-                cleanseqs.set_seq(entri[0]+"_query", entri[1])
-        return cleanseqs
-
-
     def checkinput(self):
         self.seqs = SeqGroup(sequences=self.query, format = "fasta")
         self.seqs.write(format="fasta_internal", outfile=self.tmpquery)
