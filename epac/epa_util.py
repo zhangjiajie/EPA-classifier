@@ -58,6 +58,7 @@ class epa:
         os.remove(self.tmppath + "/" + "RAxML_originalLabelledTree." + self.name)
         #os.remove(self.tmppath + "/" + "RAxML_portableTree." + self.name + ".jplace")
         os.remove(self.tmppath + "/" + self.name + ".tre")
+        
      
     def dummy(self, reftree, alignment):
         seqs = SeqGroup(sequences=alignment, format='fasta')

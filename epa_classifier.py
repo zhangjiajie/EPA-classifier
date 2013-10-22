@@ -5,10 +5,11 @@ try:
     import json
     import operator
     import time
+    import glob
     from epac import Tree, SeqGroup
     from subprocess import call
     from epac.epa_util import epa
-    from epac.json_util import jsonparser
+    from epac.json_util import jsonparser, json_checker
     from epac.msa import muscle, hmmer
     from epac.erlang import erlang
     from epac.taxonomy_util import TaxonomyUtils
@@ -22,6 +23,7 @@ class magic:
         self.numcpus = numcpu
         self.v = verbose
         self.refjson = jsonparser(refjson)
+        self.refjson.validate()
         self.bid_taxonomy_map = self.refjson.get_bid_tanomomy_map()
         self.reftree = self.refjson.get_reftree()
         self.rate = self.refjson.get_rate()
@@ -39,12 +41,16 @@ class magic:
         self.seqs = None
 
 
-    def __del__(self):
+    def cleanup(self):
         self.remove(self.tmp_refaln)
         self.remove(self.epa_alignment)
         self.remove(self.hmmprofile)
-
-
+        self.remove(self.tmpquery)
+        reduced = glob.glob(self.tmppath + "/*.reduced")
+        for f in reduced:
+            self.remove(f)
+        
+        
     def remove(self, filename):
         if os.path.exists(filename):
             os.remove(filename)
@@ -454,8 +460,10 @@ if __name__ == "__main__":
     print(" Number of threads:............." + numcpus)
     print("Result will be write to:")
     print(soutput)
+    print()
     
     m = magic(refjson = sreference, query = squery, verbose = verbose, numcpu = numcpus)
     m.classify(fout = soutput, method = method, minlw = dminlw, pv = p_value)
+    m.cleanup()
 
     

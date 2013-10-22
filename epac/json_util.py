@@ -9,8 +9,11 @@ from subprocess import call
 
 
 class json_checker:
-    def __init__(self, jsonfin):
-        self.jdata = json.load(open(jsonfin))
+    def __init__(self, jsonfin= None, jdata = None):
+        if jsonfin!=None:
+            self.jdata = json.load(open(jsonfin))
+        else:
+            self.jdata = jdata
     
     def valid(self, ver = "1.0"):
         #tree
@@ -85,6 +88,12 @@ class json_checker:
 class jsonparser:
     def __init__(self, jsonfin):
         self.jdata = json.load(open(jsonfin))
+        
+    def validate(self):
+        jc = json_checker(jdata = self.jdata)
+        if not jc.valid():
+            print("Invalid reference database format")
+            sys.exit()
     
     def get_rate(self):
         return self.jdata["rate"]
@@ -150,7 +159,7 @@ if __name__ == "__main__":
     if len(sys.argv) < 2: 
         print("usage: ./json_util.py jsonfile")
         sys.exit()
-    jc = json_checker(sys.argv[1])
+    jc = json_checker(jsonfin = sys.argv[1])
     if jc.valid():
         print("The json file is OK for EPA-classifer")
     else:
