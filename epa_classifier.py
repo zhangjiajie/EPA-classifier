@@ -7,7 +7,7 @@ try:
     import time
     import glob
     from epac.ete2 import Tree, SeqGroup
-    from epac.argparse import Tree, SeqGroup
+    from epac.argparse import ArgumentParser
     from subprocess import call
     from epac.epa_util import epa
     from epac.json_util import jsonparser, json_checker
