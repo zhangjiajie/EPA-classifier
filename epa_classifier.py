@@ -49,17 +49,17 @@ class magic:
         reduced = glob.glob(self.tmppath + "/*.reduced")
         for f in reduced:
             self.remove(f)
-        
-        
+
+
     def remove(self, filename):
         if os.path.exists(filename):
             os.remove(filename)
 
 
-    def align_to_refenence(self):
+    def align_to_refenence(self, noalign):
         self.refjson.get_hmm_profile(self.hmmprofile)
         refaln = self.refjson.get_alignment(fout = self.tmp_refaln)
-        hm = hmmer(refalign = refaln , query = self.tmpquery, refprofile = self.hmmprofile)
+        hm = hmmer(refalign = refaln , query = self.tmpquery, refprofile = self.hmmprofile, discard = noalign, seqs = self.seqs)
         self.epa_alignment = hm.align()
 
 
@@ -73,7 +73,7 @@ class magic:
                 fout.write(">" + str(sid) + "\n" + seq + "\n")
 
 
-    def checkinput(self):
+    def checkinput(self, noalignpath):
         self.seqs = SeqGroup(sequences=self.query, format = "fasta")
         self.seqs.write(format="fasta_internal", outfile=self.tmpquery)
         #print("Checking query sequences for conflicting names ...")
@@ -104,9 +104,9 @@ class magic:
             print("Query sequences are not aligned")
             print("Align query sequences to the reference alignment using HMMER")
             require_hmmer()
-            self.align_to_refenence()
+            self.align_to_refenence(noalignpath)
         
-        print("Running EPA...")
+        print("Running EPA ......")
 
 
     def print_ranks(self, rks, confs, minlw = 0.0):
@@ -127,8 +127,8 @@ class magic:
             return ss[:-1] + "\t" + css[:-1]
 
 
-    def classify(self, fout = None, method = "1", minlw = 0.0, pv = 0.02):
-        self.checkinput()
+    def classify(self, fout = None, fnoalign = None, method = "1", minlw = 0.0, pv = 0.02):
+        self.checkinput(fnoalign)
         EPA = epa()
         placements = EPA.run(reftree = self.refjson.get_raxml_readable_tree(), alignment = self.epa_alignment, num_thread = self.numcpus).get_placement()
         EPA.clean()
@@ -168,8 +168,8 @@ class magic:
         
         if fout!=None:
             fo.close()
-    
-    
+
+
     def erlang_filter(self, edges, p = 0.02):
         newedges = []
         for edge in edges:
@@ -179,8 +179,8 @@ class magic:
             if pv >= p:
                 newedges.append(edge)
         return newedges
-    
-    
+
+
     def novelty_check(self, place_edge, ranks, lws, minlw):
         """If the taxonomic assignment is not assigned to the genus level, 
         we need to check if it is due to the incomplete reference taxonomy or 
@@ -225,7 +225,7 @@ class magic:
                         break
                         
                 return flag
-    
+
 
     def assign_taxonomy(self, edges):
         #Calculate the sum of likelihood weight for each rank
@@ -387,6 +387,7 @@ if __name__ == "__main__":
     numcpus = "2"
     p_value = 0.02
     method = "1"
+    snoalign = ""
     
     for i in range(len(sys.argv)):
         if sys.argv[i] == "-r":
@@ -441,6 +442,9 @@ if __name__ == "__main__":
     
     if soutput == "":
         soutput = squery + ".assignment.txt"
+        snoalign = squery + ".noalign"
+    else:
+        snoalign = soutput + ".noalign"
     
     if dminlw < 0 or dminlw > 1.0:
          dminlw = 0.0
@@ -460,10 +464,12 @@ if __name__ == "__main__":
     print(" Number of threads:............." + numcpus)
     print("Result will be write to:")
     print(soutput)
-    print()
+    print("Sequence can not be aligned will be write to:")
+    print(snoalign)
+    print("")
     
     m = magic(refjson = sreference, query = squery, verbose = verbose, numcpu = numcpus)
-    m.classify(fout = soutput, method = method, minlw = dminlw, pv = p_value)
+    m.classify(fout = soutput, fnoalign = snoalign , method = method, minlw = dminlw, pv = p_value)
     m.cleanup()
 
     

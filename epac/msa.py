@@ -9,7 +9,7 @@ from coretype.tree import Tree
 from subprocess import call
 
 class hmmer:
-    def __init__(self, refalign = None, query = None, refprofile = None):
+    def __init__(self, refalign = None, query = None, refprofile = None, discard = None, seqs = None):
         self.refalign = refalign
         self.query = query
         self.refprofile = refprofile
@@ -24,6 +24,8 @@ class hmmer:
         self.trimed = self.tmppath + "/" + self.name + ".trimed.afa"
         self.output = self.tmppath + "/" + self.name + ".aligned.afa"
         self.merged = self.tmppath + "/" + self.name + ".merged.afa"
+        self.discardpath = discard
+        self.seqs = seqs 
     
     def remove(self, filename):
         if os.path.exists(filename):
@@ -118,6 +120,7 @@ class hmmer:
             line = fin.readline()
         fin.close()
         fout = open(self.output, "w")
+        foutdiscard = open(self.discardpath, "w")
         for key in seqs.keys():
             if count_non_gap(seqs[key]) >= minl:
                 fout.write(">" + key + "\n")
@@ -130,6 +133,8 @@ class hmmer:
                     print("Warning: query sequence > ref sequence")
             
                 fout.write(seq + "\n")
+            else:
+                foutdiscard.write(">" + self.seqs.get_name(int(key)) + "\n")
         fout.close()
         return self.output
 
