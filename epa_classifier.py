@@ -5,7 +5,7 @@ try:
     import json
     import operator
     import time
-    from ete2 import Tree, TreeStyle, TextFace, SeqGroup
+    from epac import Tree, SeqGroup
     from subprocess import call
     from epac.epa_util import epa
     from epac.json_util import jsonparser
@@ -13,11 +13,7 @@ try:
     from epac.erlang import erlang
     from epac.taxonomy_util import TaxonomyUtils
 except ImportError:
-    print("Please install the scipy and ETE package first.")
-    print("If your OS is ubuntu or has apt installed, you can try the following:") 
-    print(" sudo apt-get install python-setuptools python-numpy python-qt4 python-scipy python-mysqldb python-lxml python-matplotlib")
-    print(" sudo easy_install -U ete2")
-    print("Otherwise, please go to http://ete.cgenomics.org/ for instructions")
+    print("Some packages are missing, please re-downloand EPA-classifier")
     sys.exit()
 
 
@@ -38,7 +34,9 @@ class magic:
         self.tmp_refaln = self.tmppath + "/" + self.name + ".refaln"
         self.epa_alignment = self.tmppath + "/" + self.name + ".afa"
         self.hmmprofile = self.tmppath + "/" + self.name + ".hmmprofile"
+        self.tmpquery = self.tmppath + "/" + self.name + ".tmpquery"
         self.min_confidence=0.2
+        self.seqs = None
 
 
     def __del__(self):
@@ -55,18 +53,18 @@ class magic:
     def align_to_refenence(self):
         self.refjson.get_hmm_profile(self.hmmprofile)
         refaln = self.refjson.get_alignment(fout = self.tmp_refaln)
-        hm = hmmer(refalign = refaln , query = self.query, refprofile = self.hmmprofile)
+        hm = hmmer(refalign = refaln , query = self.tmpquery, refprofile = self.hmmprofile)
         self.epa_alignment = hm.align()
 
 
     def merge_alignment(self, query_seqs):
         refaln = self.refjson.get_alignment_list()
-        queryaln = query_seqs.get_entries()
+        #queryaln = query_seqs.get_entries()
         with open(self.epa_alignment, "w") as fout:
             for seq in refaln:
                 fout.write(">" + seq[0] + "\n" + seq[1] + "\n")
-            for seq in queryaln:
-                fout.write(">" + seq[0] + "\n" + seq[1] + "\n")
+            for name, seq, comment, sid in query_seqs.iter_entries():
+                fout.write(">" + str(sid) + "\n" + seq + "\n")
 
 
     def correct_conflicting_names(self, query_seqs):
@@ -81,11 +79,12 @@ class magic:
 
 
     def checkinput(self):
-        seqs = SeqGroup(sequences=self.query)
-        print("Checking query sequences for conflicting names ...")
-        seqs = self.correct_conflicting_names(query_seqs = seqs)
+        self.seqs = SeqGroup(sequences=self.query, format = "fasta")
+        self.seqs.write(format="fasta_internal", outfile=self.tmpquery)
+        #print("Checking query sequences for conflicting names ...")
+        #seqs = self.correct_conflicting_names(query_seqs = seqs)
         print("Checking if query sequences are aligned ...")
-        entries = seqs.get_entries()
+        entries = self.seqs.get_entries()
         seql = len(entries[0][1])
         aligned = True
         for entri in entries[1:]:
@@ -99,13 +98,13 @@ class magic:
             refalnl = self.refjson.get_alignment_length()
             if refalnl == seql:
                 print("Merging query alignment with reference alignment")
-                self.merge_alignment(seqs)
+                self.merge_alignment(self.seqs)
             else:
                 print("Merging query alignment with reference alignment using MUSCLE")
                 require_muscle()
                 refaln = self.refjson.get_alignment(fout = self.tmp_refaln)
                 m = muscle()
-                self.epa_alignment = m.merge(refaln, self.query)
+                self.epa_alignment = m.merge(refaln, self.tmpquery)
         else:
             print("Query sequences are not aligned")
             print("Align query sequences to the reference alignment using HMMER")
@@ -143,6 +142,7 @@ class magic:
         
         for place in placements:
             taxa_name = place["n"][0]
+            origin_taxa_name = self.seqs.get_name(int(taxa_name))
             edges = place["p"]
             edges = self.erlang_filter(edges, p = pv)
             if len(edges) > 0:
@@ -154,18 +154,18 @@ class magic:
                 isnovo = self.novelty_check(place_edge = str(edges[0][0]), ranks =ranks, lws = lws, minlw = minlw)
                 rankout = self.print_ranks(ranks, lws, minlw)
                 if rankout == None:
-                    output = taxa_name+ "\t\t\t?"
+                    output = origin_taxa_name+ "\t\t\t?"
                 else:
                     if isnovo: 
-                        output = taxa_name+ "\t" + self.print_ranks(ranks, lws, minlw) + "\t*"
+                        output = origin_taxa_name+ "\t" + self.print_ranks(ranks, lws, minlw) + "\t*"
                     else:
-                        output = taxa_name+ "\t" + self.print_ranks(ranks, lws, minlw) + "\to"
+                        output = origin_taxa_name+ "\t" + self.print_ranks(ranks, lws, minlw) + "\to"
                 if self.v:
                     print(output) 
                 if fout!=None:
                     fo.write(output + "\n")
             else:
-                output = taxa_name+ "\t\t\t?"
+                output = origin_taxa_name+ "\t\t\t?"
                 if self.v:
                     print(output) 
                 if fout!=None:

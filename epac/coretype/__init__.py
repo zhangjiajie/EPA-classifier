@@ -1,3 +1,4 @@
+__VERSION__="ete2-2.2rev1026" 
 # -*- coding: utf-8 -*-
 # #START_LICENSE###########################################################
 #
@@ -37,11 +38,4 @@
 #
 # 
 # #END_LICENSE#############################################################
-
-
-# Note that the use of "from x import *" is safe here. Modules include
-# the __all__ variable.
-
-from coretype.tree import *
-from coretype.seqgroup import *
 

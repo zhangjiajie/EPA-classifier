@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 import math
-from ete2 import Tree
+from coretype.tree import Tree
 
 class erlang:
     def __init__(self):
@@ -58,4 +58,4 @@ class tree_param:
 if __name__ == "__main__":
     print("This is erlang.py main")
     el = erlang()
-    print el.one_tail_test(rate = 10, k = 2, x = 1)
+    print el.one_tail_test(rate = 17, k = 1, x = 0.221977)

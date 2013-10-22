@@ -4,7 +4,8 @@ import os
 import json
 import operator
 import time
-from ete2 import Tree, TreeStyle, TextFace, SeqGroup
+from coretype.seqgroup import SeqGroup
+from coretype.tree import Tree
 from subprocess import call
 from json_util import jsonparser
 

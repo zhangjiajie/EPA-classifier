@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import sys
-from ete2 import Tree, TreeNode
+from coretype.seqgroup import SeqGroup
+from coretype.tree import Tree
 
 
 class Taxa:
