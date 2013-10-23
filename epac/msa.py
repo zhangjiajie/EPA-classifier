@@ -32,12 +32,7 @@ class hmmer:
             os.remove(filename)
     
     def __del__(self):
-        #self.remove(self.refprofile)
         self.remove(self.stockname)
-        #self.remove(self.trimed)
-        #self.remove(self.output)
-        #self.remove(self.merged)
-        pass
     
     def build_hmm_profile(self):
         #hmmbuild --informat afa refotu.hmm ref_outs_547.fas

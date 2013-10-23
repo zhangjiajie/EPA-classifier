@@ -388,6 +388,7 @@ if __name__ == "__main__":
     p_value = 0.02
     method = "1"
     snoalign = ""
+    debug = False
     
     for i in range(len(sys.argv)):
         if sys.argv[i] == "-r":
@@ -413,6 +414,8 @@ if __name__ == "__main__":
             method = sys.argv[i]
         elif sys.argv[i] == "-v":
             verbose = True
+        elif sys.argv[i] == "-d":
+            debug = True
         elif i == 0:
             pass
         elif sys.argv[i].startswith("-"):
@@ -470,6 +473,7 @@ if __name__ == "__main__":
     
     m = magic(refjson = sreference, query = squery, verbose = verbose, numcpu = numcpus)
     m.classify(fout = soutput, fnoalign = snoalign , method = method, minlw = dminlw, pv = p_value)
-    m.cleanup()
+    if not debug:
+        m.cleanup()
 
     
