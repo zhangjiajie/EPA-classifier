@@ -4,8 +4,7 @@ import os
 import json
 import operator
 import time
-from coretype.seqgroup import SeqGroup
-from coretype.tree import Tree
+from epac.ete2 import SeqGroup, Tree
 from subprocess import call
 from json_util import jsonparser
 
@@ -33,17 +32,17 @@ class epa:
         #./raxmlHPC-PTHREADS-SSE3 -f v -m GTRGAMMA -s ../example/t1.fa -t ../example/t1.test.tre -p 1234 -n jjj -T 2
         if os.path.exists(reftree):
             if model == None:
-                call([self.raxmlpath,"-f", "v", "-m","GTRGAMMA","-s",alignment,"-t", reftree, "-n",self.name,"-p", "1234", "-T", num_thread, "-w", self.tmppath] , stdout=open(os.devnull, "w"), stderr=open(os.devnull, "w"))
+                call([self.raxmlpath,"-f", "v", "-m","GTRGAMMA","-s",alignment,"-t", reftree, "-n",self.name,"-p", "1234", "-T", str(num_thread), "-w", self.tmppath] , stdout=open(os.devnull, "w"), stderr=open(os.devnull, "w"))
             else:
-                call([self.raxmlpath,"-f", "v", "-G", "0.01", "-R", model, "-m","GTRGAMMA","-s",alignment,"-t", reftree, "-n",self.name,"-p", "1234", "-T", num_thread, "-w", self.tmppath] , stdout=open(os.devnull, "w"), stderr=open(os.devnull, "w"))
+                call([self.raxmlpath,"-f", "v", "-G", "0.01", "-R", model, "-m","GTRGAMMA","-s",alignment,"-t", reftree, "-n",self.name,"-p", "1234", "-T", str(num_thread), "-w", self.tmppath] , stdout=open(os.devnull, "w"), stderr=open(os.devnull, "w"))
         else:
             tmptree = self.tmppath+"/" + self.name + ".tre"
             with open(tmptree, "w") as fout:
                 fout.write(reftree)
             if model == None:
-                call([self.raxmlpath,"-f", "v", "-m","GTRGAMMA","-s",alignment,"-t", tmptree, "-n",self.name,"-p", "1234", "-T", num_thread, "-w", self.tmppath] , stdout=open(os.devnull, "w"), stderr=open(os.devnull, "w"))
+                call([self.raxmlpath,"-f", "v", "-m","GTRGAMMA","-s",alignment,"-t", tmptree, "-n",self.name,"-p", "1234", "-T", str(num_thread), "-w", self.tmppath] , stdout=open(os.devnull, "w"), stderr=open(os.devnull, "w"))
             else:
-                call([self.raxmlpath,"-f", "v", "-G", "0.01","-R", model, "-m","GTRGAMMA","-s",alignment,"-t", tmptree, "-n",self.name,"-p", "1234", "-T", num_thread, "-w", self.tmppath] , stdout=open(os.devnull, "w"), stderr=open(os.devnull, "w"))
+                call([self.raxmlpath,"-f", "v", "-G", "0.01","-R", model, "-m","GTRGAMMA","-s",alignment,"-t", tmptree, "-n",self.name,"-p", "1234", "-T", str(num_thread), "-w", self.tmppath] , stdout=open(os.devnull, "w"), stderr=open(os.devnull, "w"))
 
         jp = jsonparser(self.tmppath + "/" + "RAxML_portableTree." + self.name + ".jplace")
         return jp

@@ -42,6 +42,6 @@
 # Note that the use of "from x import *" is safe here. Modules include
 # the __all__ variable.
 
-from coretype.tree import *
-from coretype.seqgroup import *
+#from coretype.tree import *
+#from coretype.seqgroup import *
 

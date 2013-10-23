@@ -6,7 +6,8 @@ try:
     import operator
     import time
     import glob
-    from epac import Tree, SeqGroup
+    from epac.ete2 import Tree, SeqGroup
+    from epac.argparse import ArgumentParser
     from subprocess import call
     from epac.epa_util import epa
     from epac.json_util import jsonparser, json_checker
@@ -373,107 +374,106 @@ def require_hmmer():
         print("Copy the executables hmmbuild and hmmalign to bin/  \n")
         sys.exit()
 
+def parse_args():
+    parser = ArgumentParser(description="Assign taxonomy ranks to query sequences")
+    parser.add_argument("-r", dest="ref_fname",
+            help="""Specify the reference alignment and  taxonomy in json  format.""")
+    parser.add_argument("-q", dest="query_fname",
+            help="""Specify the query seqeunces file.\n
+                    If the query sequences are aligned to  the  reference  alignment
+                    already, the epa_classifier will  classify the  queries  to  the
+                    lowest rank possible. If the  query sequences  are aligned,  but
+                    not to the reference, then a profile alignment will be performed
+                    to merge the two alignments. If  the  query  sequences  are  not
+                    aligned, then HMMER will be used to align  the  queries  to  the
+                    reference alignment.""")
+    parser.add_argument("-t", dest="min_lhw", type=float, default=0.,
+            help="""A value between 0 and 1, the minimal sum of likelihood weight of
+                    an assignment to a specific rank. This value represents a confidence 
+                    measure of the assignment,  assignments  below  this value will be discarded. 
+                    Default: 0 to output all possbile assignments.""")
+    parser.add_argument("-o", dest="output_fname", default="",
+            help="""Query name, will be used as a name of results folder (default: <reftree>_YYYYMMDD_HHMM)""")
+    parser.add_argument("-p", dest="p_value", type=float, default=0.02,
+            help="""P-value for Erlang test.  Default: 0.02""")
+    parser.add_argument("-m", dest="method", default="1",
+            help="""Assignment method 1 or 2
+                    1: Max sum likelihood (default)
+                    2: Max likelihood placement""")
+    parser.add_argument("-T", dest="num_threads", type=int, default=2,
+            help="""Specify the number of CPUs.  Default: 2""")
+    parser.add_argument("-v", dest="verbose", action="store_true",
+            help="""Print the results on screen.""")
+    parser.add_argument("-a", dest="align_only", action="store_true",
+            help="""Alignment only: Do not perform classification, just build the combined alignment (RS+QS) (default: OFF)""")
+    parser.add_argument("-j", dest="jplace_fname",
+            help="""Do not call RAxML EPA, use existing .jplace file as input instead.""")
+    parser.add_argument("-c", dest="config_fname", default="epac.cfg",
+            help="config file name (default: epac.cfg)")
+    args = parser.parse_args()
+    return args
 
-if __name__ == "__main__":
-    if len(sys.argv) < 4: 
+    
+def check_args(args):
+    if not args.ref_fname:
+        print("Must specify the reference in json format!\n")
         print_options()
         sys.exit()
     
-    sreference = ""
-    squery = ""
-    dminlw = 0.0
-    soutput = ""
-    verbose = False
-    numcpus = "2"
-    p_value = 0.02
-    method = "1"
-    snoalign = ""
-    debug = False
-    
-    for i in range(len(sys.argv)):
-        if sys.argv[i] == "-r":
-            i = i + 1
-            sreference = sys.argv[i]
-        elif sys.argv[i] == "-q":
-            i = i + 1
-            squery = sys.argv[i]
-        elif sys.argv[i] == "-t":
-            i = i + 1
-            dminlw = float(sys.argv[i])
-        elif sys.argv[i] == "-o":
-            i = i + 1
-            soutput = int(sys.argv[i])
-        elif sys.argv[i] == "-T":
-            i = i + 1
-            numcpus = sys.argv[i]
-        elif sys.argv[i] == "-p":
-            i = i + 1
-            p_value = float(sys.argv[i])
-        elif sys.argv[i] == "-m":
-            i = i + 1
-            method = sys.argv[i]
-        elif sys.argv[i] == "-v":
-            verbose = True
-        elif sys.argv[i] == "-d":
-            debug = True
-        elif i == 0:
-            pass
-        elif sys.argv[i].startswith("-"):
-            print("Unknown options: " + sys.argv[i])
-            print_options()
-            sys.exit()
-    
-    if sreference == "":
-        print("Must specify the reference in json format!")
+    if not os.path.exists(args.ref_fname):
+        print("Input reference json file does not exists: %s" % args.ref_fname)
         print_options()
         sys.exit()
     
-    if not os.path.exists(sreference):
-        print("Input reference json file does not exists")
+    if not args.query_fname:
+        print("The query can not be empty!\n")
         print_options()
         sys.exit()
     
-    if squery == "":
-        print("The query can not be empty!")
+    if not os.path.exists(args.query_fname):
+        print("Input query file does not exists: %s" % args.query_fname)
         print_options()
         sys.exit()
     
-    if not os.path.exists(squery):
-        print("Input query file does not exists")
-        print_options()
-        sys.exit()
-    
-    if soutput == "":
-        soutput = squery + ".assignment.txt"
-        snoalign = squery + ".noalign"
+    if args.output_fname == "":
+        args.output_fname = args.query_fname + ".assignment.txt"
+        args.noalign_fname = args.query_fname + ".noalign"
     else:
-        snoalign = soutput + ".noalign"
+        args.noalign_fname = args.output_fname + ".noalign"
     
-    if dminlw < 0 or dminlw > 1.0:
-         dminlw = 0.0
+    if args.min_lhw < 0 or args.min_lhw > 1.0:
+         args.min_lhw = 0.0
     
-    if p_value < 0:
-        p_value = 0
+    if args.p_value < 0:
+        args.p_value = 0
     
-    if not (method == "1" or method == "2"):
-        method == "1"
+    if not (args.method == "1" or args.method == "2"):
+        args.method == "1"
     
     print("EPA-classifier running with the following parameters:")
-    print(" Reference:....................." + sreference)
-    print(" Query:........................." + squery)
-    print(" Min likelihood weight:........." + str(dminlw))
-    print(" Assignment method:............." + method)
-    print(" P-value for Erlang test:......." + str(p_value))
-    print(" Number of threads:............." + numcpus)
-    print("Result will be write to:")
-    print(soutput)
-    print("Sequence can not be aligned will be write to:")
-    print(snoalign)
+    print(" Reference:.....................%s" % args.ref_fname)
+    print(" Query:.........................%s" % args.query_fname)
+    print(" Min likelihood weight:.........%f" % args.min_lhw)
+    print(" Assignment method:.............%s" % args.method)
+    print(" P-value for Erlang test:.......%f" % args.p_value)
+    print(" Number of threads:.............%d" % args.num_threads)
+    print("Result will be written to:")
+    print(args.output_fname)
+    print("Sequences which can not be aligned will be written to:")
+    print(args.noalign_fname)
     print("")
-    
-    m = magic(refjson = sreference, query = squery, verbose = verbose, numcpu = numcpus)
-    m.classify(fout = soutput, fnoalign = snoalign , method = method, minlw = dminlw, pv = p_value)
-    if not debug:
-        m.cleanup()
+
+if __name__ == "__main__":
+    if len(sys.argv) == 1: 
+        print_options()
+        sys.exit()
+
+    args = parse_args()
+    check_args(args)
+   
+    m = magic(refjson = args.ref_fname, query = args.query_fname, verbose = args.verbose, numcpu = args.num_threads)
+    m.classify(fout = args.output_fname, fnoalign = args.noalign_fname, method = args.method, minlw = args.min_lhw, pv = args.p_value)
+    m.cleanup()
+
 
     

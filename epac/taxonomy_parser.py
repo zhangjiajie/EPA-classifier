@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 import sys
-from coretype.seqgroup import SeqGroup
-from coretype.tree import Tree
-
+from epac.ete2 import SeqGroup,Tree
 
 class Taxa:
     def __init__(self, ranks, node_list):
