@@ -351,6 +351,7 @@ def print_options():
     print("                                   will be discarded. Default: 0 to output all possbile assignments.\n")
     print("    -o outputfile                  Specify the file name for output.\n")
     print("    -p p-value                     P-value for Erlang test.  Default: 0.02\n")
+    print("    -minalign min-aligned%         Minimal percent of aligned sites.  Default: 0.9 (90%)\n")
     print("    -m method                      Assignment method 1 or 2")
     print("                                   1: Max sum likelihood (default)")
     print("                                   2: Max likelihood placement\n ")
