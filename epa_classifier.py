@@ -21,7 +21,11 @@ class magic:
     def __init__(self, refjson, query, verbose = True, numcpu = "2"):
         self.numcpus = numcpu
         self.v = verbose
-        self.refjson = jsonparser(refjson)
+        try:
+            self.refjson = jsonparser(refjson)
+        except ValueError:
+            print("Invalid json file format!")
+            sys.exit()
         #validate input json format 
         self.refjson.validate()
         self.bid_taxonomy_map = self.refjson.get_bid_tanomomy_map()
@@ -78,7 +82,18 @@ class magic:
 
 
     def checkinput(self, minp = 0.9):
-        self.seqs = SeqGroup(sequences=self.query, format = "fasta")
+        formats = ["fasta", "phylip", "iphylip", "phylip_relaxed", "iphylip_relaxed"]
+        for forma in formats:
+            try:
+                self.seqs = SeqGroup(sequences=self.query, format = forma)
+                break
+            except:
+                print("Guessing input format: not " + forma)
+        if self.seqs == None:
+            print("Invalid input file format!")
+            print("The supported input formats are fasta and phylip")
+            sys.exit()
+            
         self.seqs.write(format="fasta_internal", outfile=self.tmpquery)
         print("Checking if query sequences are aligned ...")
         entries = self.seqs.get_entries()
