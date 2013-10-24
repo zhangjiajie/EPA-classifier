@@ -36,6 +36,7 @@ class magic:
         self.epa_alignment = self.tmppath + "/" + self.name + ".afa"
         self.hmmprofile = self.tmppath + "/" + self.name + ".hmmprofile"
         self.tmpquery = self.tmppath + "/" + self.name + ".tmpquery"
+        self.noalign = self.tmppath + "/" + self.name + ".noalign"
         self.min_confidence=0.2
         self.seqs = None
 
@@ -45,6 +46,7 @@ class magic:
         self.remove(self.epa_alignment)
         self.remove(self.hmmprofile)
         self.remove(self.tmpquery)
+        self.remove(self.noalign)
         reduced = glob.glob(self.tmppath + "/*.reduced")
         for f in reduced:
             self.remove(f)
@@ -74,7 +76,7 @@ class magic:
                 fout.write(">" + str(sid) + "\n" + seq + "\n")
 
 
-    def checkinput(self, noalignpath, minp = 0.9):
+    def checkinput(self, minp = 0.9):
         self.seqs = SeqGroup(sequences=self.query, format = "fasta")
         self.seqs.write(format="fasta_internal", outfile=self.tmpquery)
         print("Checking if query sequences are aligned ...")
@@ -103,7 +105,7 @@ class magic:
             print("Query sequences are not aligned")
             print("Align query sequences to the reference alignment using HMMER")
             require_hmmer()
-            self.align_to_refenence(noalignpath, minp = minp)
+            self.align_to_refenence(self.noalign, minp = minp)
         
         print("Running EPA ......")
 
@@ -126,14 +128,15 @@ class magic:
             return ss[:-1] + "\t" + css[:-1]
 
 
-    def classify(self, fout = None, fnoalign = None, method = "1", minlw = 0.0, pv = 0.02, minp = 0.9):
-        self.checkinput(fnoalign, minp = minp)
+    def classify(self, fout = None, method = "1", minlw = 0.0, pv = 0.02, minp = 0.9):
+        self.checkinput(minp = minp)
         EPA = epa()
         placements = EPA.run(reftree = self.refjson.get_raxml_readable_tree(), alignment = self.epa_alignment, num_thread = self.numcpus).get_placement()
         EPA.clean()
         if fout!=None:
             fo = open(fout, "w")
         
+        output2 = ""
         for place in placements:
             taxa_name = place["n"][0]
             origin_taxa_name = self.seqs.get_name(int(taxa_name))
@@ -148,7 +151,7 @@ class magic:
                 isnovo = self.novelty_check(place_edge = str(edges[0][0]), ranks =ranks, lws = lws, minlw = minlw)
                 rankout = self.print_ranks(ranks, lws, minlw)
                 if rankout == None:
-                    output = origin_taxa_name+ "\t\t\t?"
+                    output2 = output2 + origin_taxa_name+ "\t\t\t?\n"
                 else:
                     if isnovo: 
                         output = origin_taxa_name+ "\t" + self.print_ranks(ranks, lws, minlw) + "\t*"
@@ -159,11 +162,24 @@ class magic:
                 if fout!=None:
                     fo.write(output + "\n")
             else:
-                output = origin_taxa_name+ "\t\t\t?"
+                output2 = output2 + origin_taxa_name+ "\t\t\t?\n"
                 if self.v:
                     print(output) 
                 if fout!=None:
                     fo.write(output + "\n")
+        
+        with open(self.noalign) as fnoa:
+            lines = fnoa.readlines()
+            for line in lines:
+                if self.v:
+                    print(line.strip())
+                if fout!=None:
+                    fo.write(line)
+        
+        if self.v:
+            print(output2) 
+        if fout!=None:
+            fo.write(output2)
         
         if fout!=None:
             fo.close()
@@ -440,9 +456,6 @@ def check_args(args):
     
     if args.output_fname == "":
         args.output_fname = args.query_fname + ".assignment.txt"
-        args.noalign_fname = args.query_fname + ".noalign"
-    else:
-        args.noalign_fname = args.output_fname + ".noalign"
     
     if args.min_lhw < 0 or args.min_lhw > 1.0:
          args.min_lhw = 0.0
@@ -462,8 +475,6 @@ def check_args(args):
     print(" Number of threads:.............%d" % args.num_threads)
     print("Result will be written to:")
     print(args.output_fname)
-    print("Sequences which can not be aligned will be written to:")
-    print(args.noalign_fname)
     print("")
 
 
@@ -476,7 +487,7 @@ if __name__ == "__main__":
     check_args(args)
    
     m = magic(refjson = args.ref_fname, query = args.query_fname, verbose = args.verbose, numcpu = args.num_threads)
-    m.classify(fout = args.output_fname, fnoalign = args.noalign_fname, method = args.method, minlw = args.min_lhw, pv = args.p_value, minp = args.minalign)
+    m.classify(fout = args.output_fname, method = args.method, minlw = args.min_lhw, pv = args.p_value, minp = args.minalign)
     if not args.debug:
         m.cleanup()
 
