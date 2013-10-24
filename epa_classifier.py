@@ -122,7 +122,7 @@ class magic:
                 conf = 1.0
             if conf >= minlw:
                 ss = ss + rks[i] + ";"
-                css = css + repr(conf) + ";"
+                css = css + "{0:.3f}".format(conf) + ";"
             else:
                 break
         if ss == "":
