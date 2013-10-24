@@ -3,12 +3,10 @@ try:
     import sys
     import os
     import json
-    import operator
     import time
     import glob
     from epac.ete2 import Tree, SeqGroup
     from epac.argparse import ArgumentParser
-    from subprocess import call
     from epac.epa_util import epa
     from epac.json_util import jsonparser, json_checker
     from epac.msa import muscle, hmmer
@@ -69,7 +67,6 @@ class magic:
 
     def merge_alignment(self, query_seqs):
         refaln = self.refjson.get_alignment_list()
-        #queryaln = query_seqs.get_entries()
         with open(self.epa_alignment, "w") as fout:
             for seq in refaln:
                 fout.write(">" + seq[0] + "\n" + seq[1] + "\n")
@@ -80,8 +77,6 @@ class magic:
     def checkinput(self, noalignpath, minp = 0.9):
         self.seqs = SeqGroup(sequences=self.query, format = "fasta")
         self.seqs.write(format="fasta_internal", outfile=self.tmpquery)
-        #print("Checking query sequences for conflicting names ...")
-        #seqs = self.correct_conflicting_names(query_seqs = seqs)
         print("Checking if query sequences are aligned ...")
         entries = self.seqs.get_entries()
         seql = len(entries[0][1])
@@ -278,9 +273,8 @@ class magic:
         return ml_ranks_copy, lws
 
 
-    # this function sums up all LH-weights for each rank and takes the rank with the max. sum 
     def assign_taxonomy_maxsum(self, edges):
-
+        """this function sums up all LH-weights for each rank and takes the rank with the max. sum """
         # in EPA result, each placement(=branch) has a "weight"
         # since we are interested in taxonomic placement, we do not care about branch vs. branch comparisons,
         # but only consider rank vs. rank (e. g. G1 S1 vs. G1 S2 vs. G1)
