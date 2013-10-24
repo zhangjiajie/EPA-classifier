@@ -324,6 +324,7 @@ class magic:
         # we assign the sequence to a rank, which has the max "own" weight AND 
         # whose "total" weight is greater than a confidence threshold
         max_rw = 0.
+        s_r = None
         for r in rw_own.iterkeys():
             if rw_own[r] > max_rw and rw_total[r] >= self.min_confidence:
                 s_r = r
