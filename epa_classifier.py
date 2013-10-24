@@ -50,6 +50,9 @@ class magic:
         reduced = glob.glob(self.tmppath + "/*.reduced")
         for f in reduced:
             self.remove(f)
+        reduced = glob.glob(self.tmppath + "/*.jplace")
+        for f in reduced:
+            self.remove(f)
 
 
     def remove(self, filename):
@@ -57,10 +60,10 @@ class magic:
             os.remove(filename)
 
 
-    def align_to_refenence(self, noalign):
+    def align_to_refenence(self, noalign, minp = 0.9):
         self.refjson.get_hmm_profile(self.hmmprofile)
         refaln = self.refjson.get_alignment(fout = self.tmp_refaln)
-        hm = hmmer(refalign = refaln , query = self.tmpquery, refprofile = self.hmmprofile, discard = noalign, seqs = self.seqs)
+        hm = hmmer(refalign = refaln , query = self.tmpquery, refprofile = self.hmmprofile, discard = noalign, seqs = self.seqs, minp = minp)
         self.epa_alignment = hm.align()
 
 
@@ -74,7 +77,7 @@ class magic:
                 fout.write(">" + str(sid) + "\n" + seq + "\n")
 
 
-    def checkinput(self, noalignpath):
+    def checkinput(self, noalignpath, minp = 0.9):
         self.seqs = SeqGroup(sequences=self.query, format = "fasta")
         self.seqs.write(format="fasta_internal", outfile=self.tmpquery)
         #print("Checking query sequences for conflicting names ...")
@@ -105,7 +108,7 @@ class magic:
             print("Query sequences are not aligned")
             print("Align query sequences to the reference alignment using HMMER")
             require_hmmer()
-            self.align_to_refenence(noalignpath)
+            self.align_to_refenence(noalignpath, minp = minp)
         
         print("Running EPA ......")
 
@@ -128,8 +131,8 @@ class magic:
             return ss[:-1] + "\t" + css[:-1]
 
 
-    def classify(self, fout = None, fnoalign = None, method = "1", minlw = 0.0, pv = 0.02):
-        self.checkinput(fnoalign)
+    def classify(self, fout = None, fnoalign = None, method = "1", minlw = 0.0, pv = 0.02, minp = 0.9):
+        self.checkinput(fnoalign, minp = minp)
         EPA = epa()
         placements = EPA.run(reftree = self.refjson.get_raxml_readable_tree(), alignment = self.epa_alignment, num_thread = self.numcpus).get_placement()
         EPA.clean()
@@ -374,6 +377,7 @@ def require_hmmer():
         print("Copy the executables hmmbuild and hmmalign to bin/  \n")
         sys.exit()
 
+
 def parse_args():
     parser = ArgumentParser(description="Assign taxonomy ranks to query sequences")
     parser.add_argument("-r", dest="ref_fname",
@@ -396,6 +400,8 @@ def parse_args():
             help="""Query name, will be used as a name of results folder (default: <reftree>_YYYYMMDD_HHMM)""")
     parser.add_argument("-p", dest="p_value", type=float, default=0.02,
             help="""P-value for Erlang test.  Default: 0.02""")
+    parser.add_argument("-minalign", dest="minalign", type=float, default=0.9,
+            help="""Minimal percent of the sites aligned to the reference alignment.  Default: 0.9""")
     parser.add_argument("-m", dest="method", default="1",
             help="""Assignment method 1 or 2
                     1: Max sum likelihood (default)
@@ -404,6 +410,8 @@ def parse_args():
             help="""Specify the number of CPUs.  Default: 2""")
     parser.add_argument("-v", dest="verbose", action="store_true",
             help="""Print the results on screen.""")
+    parser.add_argument("-debug", dest="debug", action="store_true",
+            help="""debug model, intermediate files will not be cleaned up.""")
     parser.add_argument("-a", dest="align_only", action="store_true",
             help="""Alignment only: Do not perform classification, just build the combined alignment (RS+QS) (default: OFF)""")
     parser.add_argument("-j", dest="jplace_fname",
@@ -413,7 +421,7 @@ def parse_args():
     args = parser.parse_args()
     return args
 
-    
+
 def check_args(args):
     if not args.ref_fname:
         print("Must specify the reference in json format!\n")
@@ -463,6 +471,7 @@ def check_args(args):
     print(args.noalign_fname)
     print("")
 
+
 if __name__ == "__main__":
     if len(sys.argv) == 1: 
         print_options()
@@ -472,8 +481,9 @@ if __name__ == "__main__":
     check_args(args)
    
     m = magic(refjson = args.ref_fname, query = args.query_fname, verbose = args.verbose, numcpu = args.num_threads)
-    m.classify(fout = args.output_fname, fnoalign = args.noalign_fname, method = args.method, minlw = args.min_lhw, pv = args.p_value)
-    m.cleanup()
+    m.classify(fout = args.output_fname, fnoalign = args.noalign_fname, method = args.method, minlw = args.min_lhw, pv = args.p_value, minp = args.minalign)
+    if not args.debug:
+        m.cleanup()
 
 
     

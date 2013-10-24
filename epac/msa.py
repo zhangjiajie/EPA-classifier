@@ -8,7 +8,7 @@ from epac.ete2 import Tree, SeqGroup
 from subprocess import call
 
 class hmmer:
-    def __init__(self, refalign = None, query = None, refprofile = None, discard = None, seqs = None):
+    def __init__(self, refalign = None, query = None, refprofile = None, discard = None, seqs = None, minp = 0.9):
         self.refalign = refalign
         self.query = query
         self.refprofile = refprofile
@@ -25,13 +25,28 @@ class hmmer:
         self.merged = self.tmppath + "/" + self.name + ".merged.afa"
         self.discardpath = discard
         self.seqs = seqs 
+        self.minp = minp
+        self.minl = 100
     
-    def remove(self, filename):
+    def _remove(self, filename):
         if os.path.exists(filename):
             os.remove(filename)
     
     def __del__(self):
-        self.remove(self.stockname)
+        self._remove(self.stockname)
+        self._remove(self.trimed)
+        self._remove(self.output)
+    
+    def __processHMMseq(self, seqin):
+        newseq = ""
+        for s in seqin:
+            if s == ".":
+                pass
+            elif s == "-":
+                newseq = newseq + s
+            elif s.isupper():
+                newseq = newseq + s
+        return newseq
     
     def build_hmm_profile(self):
         #hmmbuild --informat afa refotu.hmm ref_outs_547.fas
@@ -42,7 +57,7 @@ class hmmer:
         #hmmalign -o 454.stock refotu.hmm 454input.fna.min100.fasta
         call([self.hmmalignpath,"-o", self.stockname, self.refprofile, self.query]) #, stdout=open(os.devnull, "w"), stderr=subprocess.STDOUT)
         return self.stockname
-
+    
     def get_hmm_refalignment(self):
         sites = []
         hmp = open(self.refprofile)
@@ -77,18 +92,8 @@ class hmmer:
         fout.close()
         return self.trimed, len(sites)
 
-    def __processHMMseq(self, seqin):
-        newseq = ""
-        for s in seqin:
-            if s == ".":
-                pass
-            elif s == "-":
-                newseq = newseq + s
-            elif s.isupper():
-                newseq = newseq + s
-        return newseq
-
-    def parse_HMM(self, l_ref, minl = 50):
+    def parse_HMM(self, l_ref):
+        """stock format"""
         cnt = 0
         fin = open(self.stockname)
         line = fin.readline()
@@ -116,7 +121,17 @@ class hmmer:
         fout = open(self.output, "w")
         foutdiscard = open(self.discardpath, "w")
         for key in seqs.keys():
-            if count_non_gap(seqs[key]) >= minl:
+            
+            #key is the sequence name which is the id
+            numleft = count_non_gap(seqs[key])
+            numall = len(self.seqs.get_seqbyid(int(key)))
+            
+            if numall > 0:
+                pleft = float(numleft) / float(numall)
+            else:
+                pleft = 0
+            
+            if numleft >= self.minl and pleft >= self.minp:
                 fout.write(">" + key + "\n")
                 seq = seqs[key]
                 lappd = l_ref - len(seq)
@@ -148,9 +163,6 @@ class hmmer:
         queryaln = self.parse_HMM(l_ref = numsite)
         #merge refrence and query alignment
         merge_alignment(aln1 = refaln, aln2 = queryaln, fout = self.merged, numsites = numsite)
-        #delete intermediate files
-        os.remove(refaln)
-        os.remove(queryaln)
         return self.merged
 
 
@@ -171,6 +183,9 @@ class muscle:
 def merge_alignment(aln1, aln2, fout, numsites):
     seqs1 = SeqGroup(aln1)
     seqs2 = SeqGroup(aln2)
+    if len(seqs1) == 0 or len(seqs2) == 0:
+        print("No sequences aligned! ")
+        sys.exit()
     with open(fout, "w") as fo:
         for seq in seqs1.iter_entries():
             if len(seq[1].strip()) == numsites:
@@ -185,12 +200,14 @@ def merge_alignment(aln1, aln2, fout, numsites):
                 print("Error in alignment ....")
                 sys.exit()
 
+
 def count_non_gap(seqin):
     cnt = 0
     for s in seqin:
         if s!="-":
             cnt = cnt + 1
     return cnt
+
 
 if __name__ == "__main__":
     print("This is main")
