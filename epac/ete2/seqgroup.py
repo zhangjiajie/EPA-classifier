@@ -1,7 +1,8 @@
 __VERSION__="ete2-2.2rev1026" 
 # -*- coding: utf-8 -*-
 # #START_LICENSE###########################################################
-#
+#  !!!!This is a hacked version by Jiajie Zhang!!!!!
+#  !!!!The internally used sequence id is exposed!!!!!
 #
 # This file is part of the Environment for Tree Exploration program
 # (ETE).  http://ete.cgenomics.org
@@ -141,6 +142,9 @@ class SeqGroup(object):
         """ Returns the sequence associated to a given entry name."""
         return self.id2seq[self.name2id[name]]
         
+    def get_seqbyid(self, iid):
+        return self.id2seq[iid]
+    
     def get_comment(self, name):
         return self.id2comment[self.name2id[name]]
         
