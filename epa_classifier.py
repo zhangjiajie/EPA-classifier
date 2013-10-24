@@ -92,8 +92,8 @@ class magic:
                 aligned = False
                 break
         
-        if aligned:
-            print("Query sequences are aligned or there is only one query")
+        if aligned and len(self.seqs) > 1:
+            print("Query sequences are aligned")
             refalnl = self.refjson.get_alignment_length()
             if refalnl == seql:
                 print("Merging query alignment with reference alignment")
