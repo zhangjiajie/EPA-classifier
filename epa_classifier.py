@@ -138,6 +138,7 @@ class magic:
         
         output2 = ""
         for place in placements:
+            output = None
             taxa_name = place["n"][0]
             origin_taxa_name = self.seqs.get_name(int(taxa_name))
             edges = place["p"]
@@ -157,16 +158,16 @@ class magic:
                         output = origin_taxa_name+ "\t" + self.print_ranks(ranks, lws, minlw) + "\t*"
                     else:
                         output = origin_taxa_name+ "\t" + self.print_ranks(ranks, lws, minlw) + "\to"
-                if self.v:
-                    print(output) 
-                if fout!=None:
-                    fo.write(output + "\n")
+                    if self.v:
+                        print(output) 
+                    if fout!=None:
+                        fo.write(output + "\n")
             else:
                 output2 = output2 + origin_taxa_name+ "\t\t\t?\n"
-                if self.v:
-                    print(output) 
-                if fout!=None:
-                    fo.write(output + "\n")
+                #if self.v:
+                #    print(output) 
+                #if fout!=None:
+                #    fo.write(output + "\n")
         
         with open(self.noalign) as fnoa:
             lines = fnoa.readlines()
