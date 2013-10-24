@@ -22,6 +22,7 @@ class magic:
         self.numcpus = numcpu
         self.v = verbose
         self.refjson = jsonparser(refjson)
+        #validate input json format 
         self.refjson.validate()
         self.bid_taxonomy_map = self.refjson.get_bid_tanomomy_map()
         self.reftree = self.refjson.get_reftree()
@@ -42,20 +43,20 @@ class magic:
 
 
     def cleanup(self):
-        self.remove(self.tmp_refaln)
-        self.remove(self.epa_alignment)
-        self.remove(self.hmmprofile)
-        self.remove(self.tmpquery)
-        self.remove(self.noalign)
+        self._remove(self.tmp_refaln)
+        self._remove(self.epa_alignment)
+        self._remove(self.hmmprofile)
+        self._remove(self.tmpquery)
+        self._remove(self.noalign)
         reduced = glob.glob(self.tmppath + "/*.reduced")
         for f in reduced:
-            self.remove(f)
+            self._remove(f)
         reduced = glob.glob(self.tmppath + "/*.jplace")
         for f in reduced:
-            self.remove(f)
+            self._remove(f)
 
 
-    def remove(self, filename):
+    def _remove(self, filename):
         if os.path.exists(filename):
             os.remove(filename)
 
@@ -108,6 +109,7 @@ class magic:
             self.align_to_refenence(self.noalign, minp = minp)
         
         print("Running EPA ......")
+        print("")
 
 
     def print_ranks(self, rks, confs, minlw = 0.0):
@@ -388,22 +390,22 @@ def require_hmmer():
 
 
 def parse_args():
-    parser = ArgumentParser(description="Assign taxonomy ranks to query sequences")
+    parser = ArgumentParser(description="Assign taxonomy ranks to query sequences.")
     parser.add_argument("-r", dest="ref_fname",
-            help="""Specify the reference alignment and  taxonomy in json  format.""")
+            help="""Specify the reference alignment and taxonomy in json format.""")
     parser.add_argument("-q", dest="query_fname",
             help="""Specify the query seqeunces file.\n
-                    If the query sequences are aligned to  the  reference  alignment
-                    already, the epa_classifier will  classify the  queries  to  the
-                    lowest rank possible. If the  query sequences  are aligned,  but
+                    If the query sequences are aligned to the reference alignment
+                    already, the epa_classifier will classify the queries to the
+                    lowest rank possible. If the query sequences are aligned, but
                     not to the reference, then a profile alignment will be performed
-                    to merge the two alignments. If  the  query  sequences  are  not
-                    aligned, then HMMER will be used to align  the  queries  to  the
+                    to merge the two alignments. If the query sequences are not
+                    aligned, then HMMER will be used to align the queries to the
                     reference alignment.""")
     parser.add_argument("-t", dest="min_lhw", type=float, default=0.,
             help="""A value between 0 and 1, the minimal sum of likelihood weight of
                     an assignment to a specific rank. This value represents a confidence 
-                    measure of the assignment,  assignments  below  this value will be discarded. 
+                    measure of the assignment, assignments below this value will be discarded. 
                     Default: 0 to output all possbile assignments.""")
     parser.add_argument("-o", dest="output_fname", default="",
             help="""Query name, will be used as a name of results folder (default: <reftree>_YYYYMMDD_HHMM)""")
@@ -431,7 +433,7 @@ def parse_args():
     return args
 
 
-def check_args(args):
+def check_args(args):    
     if not args.ref_fname:
         print("Must specify the reference in json format!\n")
         print_options()
@@ -465,12 +467,13 @@ def check_args(args):
         args.method == "1"
     
     print("EPA-classifier running with the following parameters:")
-    print(" Reference:.....................%s" % args.ref_fname)
-    print(" Query:.........................%s" % args.query_fname)
-    print(" Min likelihood weight:.........%f" % args.min_lhw)
-    print(" Assignment method:.............%s" % args.method)
-    print(" P-value for Erlang test:.......%f" % args.p_value)
-    print(" Number of threads:.............%d" % args.num_threads)
+    print(" Reference:......................%s" % args.ref_fname)
+    print(" Query:..........................%s" % args.query_fname)
+    print(" Min percent of alignment sites..%s" % args.minalign)
+    print(" Min likelihood weight:..........%f" % args.min_lhw)
+    print(" Assignment method:..............%s" % args.method)
+    print(" P-value for Erlang test:........%f" % args.p_value)
+    print(" Number of threads:..............%d" % args.num_threads)
     print("Result will be written to:")
     print(args.output_fname)
     print("")
@@ -489,5 +492,3 @@ if __name__ == "__main__":
     if not args.debug:
         m.cleanup()
 
-
-    
