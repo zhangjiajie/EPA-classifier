@@ -164,10 +164,6 @@ class magic:
                         fo.write(output + "\n")
             else:
                 output2 = output2 + origin_taxa_name+ "\t\t\t?\n"
-                #if self.v:
-                #    print(output) 
-                #if fout!=None:
-                #    fo.write(output + "\n")
         
         with open(self.noalign) as fnoa:
             lines = fnoa.readlines()
