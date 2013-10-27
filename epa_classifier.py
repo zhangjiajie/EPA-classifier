@@ -7,6 +7,7 @@ try:
     import glob
     from epac.ete2 import Tree, SeqGroup
     from epac.argparse import ArgumentParser
+    from epac.config import EpacConfig
     from epac.epa_util import epa
     from epac.json_util import jsonparser, json_checker
     from epac.msa import muscle, hmmer
@@ -17,12 +18,11 @@ except ImportError:
     sys.exit()
 
 
-class magic:
-    def __init__(self, refjson, query, verbose = True, numcpu = "2"):
-        self.numcpus = numcpu
-        self.v = verbose
+class EpaClassifier:
+    def __init__(self, config):
+        self.cfg = config
         try:
-            self.refjson = jsonparser(refjson)
+            self.refjson = jsonparser(config.refjson_fname)
         except ValueError:
             print("Invalid json file format!")
             sys.exit()
@@ -32,19 +32,13 @@ class magic:
         self.reftree = self.refjson.get_reftree()
         self.rate = self.refjson.get_rate()
         self.node_height = self.refjson.get_node_height()
-        self.query = query
-        self.basepath = os.path.dirname(os.path.abspath(__file__))
         self.erlang = erlang()
-        self.tmppath = self.basepath + "/epac/tmp"
-        self.name = str(time.time())
-        self.tmp_refaln = self.tmppath + "/" + self.name + ".refaln"
-        self.epa_alignment = self.tmppath + "/" + self.name + ".afa"
-        self.hmmprofile = self.tmppath + "/" + self.name + ".hmmprofile"
-        self.tmpquery = self.tmppath + "/" + self.name + ".tmpquery"
-        self.noalign = self.tmppath + "/" + self.name + ".noalign"
-        self.min_confidence=0.2
+        self.tmp_refaln = config.tmp_fname("%NAME%.refaln")
+        self.epa_alignment = config.tmp_fname("%NAME%.afa")
+        self.hmmprofile = config.tmp_fname("%NAME%.hmmprofile")
+        self.tmpquery = config.tmp_fname("%NAME%.tmpquery")
+        self.noalign = config.tmp_fname("%NAME%.noalign")
         self.seqs = None
-
 
     def cleanup(self):
         self._remove(self.tmp_refaln)
@@ -68,7 +62,7 @@ class magic:
     def align_to_refenence(self, noalign, minp = 0.9):
         self.refjson.get_hmm_profile(self.hmmprofile)
         refaln = self.refjson.get_alignment(fout = self.tmp_refaln)
-        hm = hmmer(refalign = refaln , query = self.tmpquery, refprofile = self.hmmprofile, discard = noalign, seqs = self.seqs, minp = minp)
+        hm = hmmer(config = self.cfg, refalign = refaln , query = self.tmpquery, refprofile = self.hmmprofile, discard = noalign, seqs = self.seqs, minp = minp)
         self.epa_alignment = hm.align()
 
 
@@ -81,14 +75,14 @@ class magic:
                 fout.write(">" + str(sid) + "\n" + seq + "\n")
 
 
-    def checkinput(self, minp = 0.9):
+    def checkinput(self, query_fname, minp = 0.9):
         formats = ["fasta", "phylip", "iphylip", "phylip_relaxed", "iphylip_relaxed"]
-        for forma in formats:
+        for fmt in formats:
             try:
-                self.seqs = SeqGroup(sequences=self.query, format = forma)
+                self.seqs = SeqGroup(sequences=query_fname, format = fmt)
                 break
             except:
-                print("Guessing input format: not " + forma)
+                print("Guessing input format: not " + fmt)
         if self.seqs == None:
             print("Invalid input file format!")
             print("The supported input formats are fasta and phylip")
@@ -115,7 +109,7 @@ class magic:
                 print("Merging query alignment with reference alignment using MUSCLE")
                 require_muscle()
                 refaln = self.refjson.get_alignment(fout = self.tmp_refaln)
-                m = muscle()
+                m = muscle(self.cfg)
                 self.epa_alignment = m.merge(refaln, self.tmpquery)
         else:
             print("Query sequences are not aligned")
@@ -145,10 +139,10 @@ class magic:
             return ss[:-1] + "\t" + css[:-1]
 
 
-    def classify(self, fout = None, method = "1", minlw = 0.0, pv = 0.02, minp = 0.9):
-        self.checkinput(minp = minp)
+    def classify(self, query_fname, fout = None, method = "1", minlw = 0.0, pv = 0.02, minp = 0.9):
+        self.checkinput(query_fname, minp)
         EPA = epa()
-        placements = EPA.run(reftree = self.refjson.get_raxml_readable_tree(), alignment = self.epa_alignment, num_thread = self.numcpus).get_placement()
+        placements = EPA.run(reftree = self.refjson.get_raxml_readable_tree(), alignment = self.epa_alignment, num_thread = self.cfg.num_threads).get_placement()
         EPA.clean()
         if fout!=None:
             fo = open(fout, "w")
@@ -162,7 +156,7 @@ class magic:
             edges = self.erlang_filter(edges, p = pv)
             if len(edges) > 0:
                 if method == "1":
-                    ranks, lws = self.assign_taxonomy_maxsum(edges)
+                    ranks, lws = self.assign_taxonomy_maxsum(edges, minlw)
                 else:
                     ranks, lws = self.assign_taxonomy(edges)
                 
@@ -303,7 +297,7 @@ class magic:
         return ml_ranks_copy, lws
 
 
-    def assign_taxonomy_maxsum(self, edges):
+    def assign_taxonomy_maxsum(self, edges, minlw = 0.):
         """this function sums up all LH-weights for each rank and takes the rank with the max. sum """
         # in EPA result, each placement(=branch) has a "weight"
         # since we are interested in taxonomic placement, we do not care about branch vs. branch comparisons,
@@ -339,7 +333,7 @@ class magic:
         max_rw = 0.
         s_r = None
         for r in rw_own.iterkeys():
-            if rw_own[r] > max_rw and rw_total[r] >= self.min_confidence:
+            if rw_own[r] > max_rw and rw_total[r] >= minlw:
                 s_r = r
                 max_rw = rw_own[r] 
         if not s_r:
@@ -432,7 +426,7 @@ def parse_args():
             help="""Assignment method 1 or 2
                     1: Max sum likelihood (default)
                     2: Max likelihood placement""")
-    parser.add_argument("-T", dest="num_threads", type=int, default=2,
+    parser.add_argument("-T", dest="num_threads", type=int, default=None,
             help="""Specify the number of CPUs.  Default: 2""")
     parser.add_argument("-v", dest="verbose", action="store_true",
             help="""Print the results on screen.""")
@@ -443,7 +437,7 @@ def parse_args():
     parser.add_argument("-j", dest="jplace_fname",
             help="""Do not call RAxML EPA, use existing .jplace file as input instead.""")
     parser.add_argument("-c", dest="config_fname", default="epac.cfg",
-            help="config file name (default: epac.cfg)")
+            help="Config file name. Default: epac.cfg")
     args = parser.parse_args()
     return args
 
@@ -480,7 +474,8 @@ def check_args(args):
     
     if not (args.method == "1" or args.method == "2"):
         args.method == "1"
-    
+        
+def print_run_info(config, args):
     print("EPA-classifier running with the following parameters:")
     print(" Reference:......................%s" % args.ref_fname)
     print(" Query:..........................%s" % args.query_fname)
@@ -488,7 +483,7 @@ def check_args(args):
     print(" Min likelihood weight:..........%f" % args.min_lhw)
     print(" Assignment method:..............%s" % args.method)
     print(" P-value for Erlang test:........%f" % args.p_value)
-    print(" Number of threads:..............%d" % args.num_threads)
+    print(" Number of threads:..............%d" % config.num_threads)
     print("Result will be written to:")
     print(args.output_fname)
     print("")
@@ -501,9 +496,11 @@ if __name__ == "__main__":
 
     args = parse_args()
     check_args(args)
+    config = EpacConfig(args)
+    print_run_info(config, args)
    
-    m = magic(refjson = args.ref_fname, query = args.query_fname, verbose = args.verbose, numcpu = args.num_threads)
-    m.classify(fout = args.output_fname, method = args.method, minlw = args.min_lhw, pv = args.p_value, minp = args.minalign)
-    if not args.debug:
-        m.cleanup()
+    ec = EpaClassifier(config)
+    ec.classify(query_fname = args.query_fname, fout = args.output_fname, method = args.method, minlw = args.min_lhw, pv = args.p_value, minp = args.minalign)
+    if not config.debug:
+        ec.cleanup()
 

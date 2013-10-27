@@ -5,24 +5,23 @@ import json
 import operator
 import time
 from epac.ete2 import Tree, SeqGroup
+from epac.config import EpacConfig
 from subprocess import call
 
 class hmmer:
-    def __init__(self, refalign = None, query = None, refprofile = None, discard = None, seqs = None, minp = 0.9):
+    def __init__(self, config, refalign = None, query = None, refprofile = None, discard = None, seqs = None, minp = 0.9):
+        self.cfg = config
         self.refalign = refalign
         self.query = query
         self.refprofile = refprofile
-        self.basepath = os.path.dirname(os.path.abspath(__file__))
-        self.hmmbuildpath = self.basepath + "/bin/hmmbuild"
-        self.hmmalignpath = self.basepath + "/bin/hmmalign"
-        self.tmppath = self.basepath + "/tmp"
-        self.name = str(time.time())
+        self.hmmbuildpath = config.hmmer_home + "/hmmbuild"
+        self.hmmalignpath = config.hmmer_home + "/hmmalign"
         if self.refprofile == None:
-            self.refprofile = self.tmppath + "/" + self.name + ".hmm"
-        self.stockname = self.tmppath + "/" + self.name + ".stock"
-        self.trimed = self.tmppath + "/" + self.name + ".trimed.afa"
-        self.output = self.tmppath + "/" + self.name + ".aligned.afa"
-        self.merged = self.tmppath + "/" + self.name + ".merged.afa"
+            self.refprofile = config.tmp_fname("%NAME%.hmm")
+        self.stockname = config.tmp_fname("%NAME%.stock")
+        self.trimed = config.tmp_fname("%NAME%.trimed.afa")
+        self.output = config.tmp_fname("%NAME%.aligned.afa")
+        self.merged = config.tmp_fname("%NAME%.merged.afa")
         self.discardpath = discard
         self.seqs = seqs 
         self.minp = minp
@@ -50,12 +49,18 @@ class hmmer:
     
     def build_hmm_profile(self):
         #hmmbuild --informat afa refotu.hmm ref_outs_547.fas
-        call([self.hmmbuildpath,"--informat", "afa", self.refprofile, self.refalign]) #, stdout=open(os.devnull, "w"), stderr=subprocess.STDOUT)
+        call_str = [self.hmmbuildpath,"--informat", "afa", self.refprofile, self.refalign]
+        if self.cfg.debug:
+            print "\n" + ' '.join(call_str) + "\n"
+        call(call_str) #, stdout=open(os.devnull, "w"), stderr=subprocess.STDOUT)
         return self.refprofile
 
     def hmm_align(self):
         #hmmalign -o 454.stock refotu.hmm 454input.fna.min100.fasta
-        call([self.hmmalignpath,"-o", self.stockname, self.refprofile, self.query]) #, stdout=open(os.devnull, "w"), stderr=subprocess.STDOUT)
+        call_str = [self.hmmalignpath,"-o", self.stockname, self.refprofile, self.query]
+        if self.cfg.debug:
+            print "\n" + ' '.join(call_str) + "\n"
+        call(call_str) #, stdout=open(os.devnull, "w"), stderr=subprocess.STDOUT)
         return self.stockname
     
     def get_hmm_refalignment(self):
@@ -167,16 +172,17 @@ class hmmer:
 
 
 class muscle:
-    def __init__(self):
-        self.basepath = os.path.dirname(os.path.abspath(__file__))
-        self.musclepath = self.basepath + "/bin/muscle"
-        self.tmppath = self.basepath + "/tmp"
-        self.name = str(time.time())
-        self.outname = self.tmppath + "/" + self.name + ".afa"
+    def __init__(self, config):
+        self.cfg = config 
+        self.musclepath = config.muscle_home + "/muscle"
+        self.outname = config.tmp_fname("%NAME%.afa")
     
     def merge(self, aln1, aln2):
         #muscle -profile -in1 existing_msa.afa -in2 new_seq.fa -out combined.afa
-        call([self.musclepath,"-profile", "-in1", aln1, "-in2", aln2, "-out", self.outname])
+        call_str = [self.musclepath,"-profile", "-in1", aln1, "-in2", aln2, "-out", self.outname]
+        if self.cfg.debug:
+            print "\n" + ' '.join(call_str) + "\n"
+        call(call_str)
         return self.outname
 
 
@@ -211,7 +217,8 @@ def count_non_gap(seqin):
 
 if __name__ == "__main__":
     print("This is main")
-    hm = hmmer(refalign = "example/t1_trimed.fa")
+    cfg = EpacConfig()
+    hm = hmmer(config = cfg, refalign = "example/t1_trimed.fa")
     #trimed = hm.process_ref_alignment()
     pf = hm.build_hmm_profile()
     print(pf)
