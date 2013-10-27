@@ -9,6 +9,7 @@ try:
     from epac.argparse import ArgumentParser
     from epac.config import EpacConfig
     from epac.epa_util import epa
+    from epac.raxml_util import RaxmlWrapper, FileUtils
     from epac.json_util import jsonparser, json_checker
     from epac.msa import muscle, hmmer
     from epac.erlang import erlang
@@ -41,23 +42,17 @@ class EpaClassifier:
         self.seqs = None
 
     def cleanup(self):
-        self._remove(self.tmp_refaln)
-        self._remove(self.epa_alignment)
-        self._remove(self.hmmprofile)
-        self._remove(self.tmpquery)
-        self._remove(self.noalign)
-        reduced = glob.glob(self.tmppath + "/*.reduced")
-        for f in reduced:
-            self._remove(f)
-        reduced = glob.glob(self.tmppath + "/*.jplace")
-        for f in reduced:
-            self._remove(f)
-
-
-    def _remove(self, filename):
-        if os.path.exists(filename):
-            os.remove(filename)
-
+        FileUtils.remove_if_exists(self.tmp_refaln)
+        FileUtils.remove_if_exists(self.epa_alignment)
+        FileUtils.remove_if_exists(self.hmmprofile)
+        FileUtils.remove_if_exists(self.tmpquery)
+        FileUtils.remove_if_exists(self.noalign)
+#        reduced = glob.glob(self.tmppath + "/*.reduced")
+#        for f in reduced:
+#            FileUtils.remove_if_exists(f)
+ #       reduced = glob.glob(self.tmppath + "/*.jplace")
+ #       for f in reduced:
+ #           self._remove(f)
 
     def align_to_refenence(self, noalign, minp = 0.9):
         self.refjson.get_hmm_profile(self.hmmprofile)
@@ -141,9 +136,19 @@ class EpaClassifier:
 
     def classify(self, query_fname, fout = None, method = "1", minlw = 0.0, pv = 0.02, minp = 0.9):
         self.checkinput(query_fname, minp)
-        EPA = epa()
-        placements = EPA.run(reftree = self.refjson.get_raxml_readable_tree(), alignment = self.epa_alignment, num_thread = self.cfg.num_threads).get_placement()
-        EPA.clean()
+        raxml = RaxmlWrapper(config)
+        reftree_fname = self.cfg.tmp_fname("ref_%NAME%.tre")
+        self.refjson.get_raxml_readable_tree(reftree_fname)
+        job_name = "epa_" + self.cfg.name
+        try:
+            reduced_align_fname = raxml.reduce_alignment(self.epa_alignment)
+            placements = raxml.run_epa(job_name, reduced_align_fname, reftree_fname).get_placement()
+        finally:
+            if not self.cfg.debug:
+                raxml.cleanup(job_name)
+                FileUtils.remove_if_exists(reduced_align_fname)
+                FileUtils.remove_if_exists(reftree_fname)
+            
         if fout!=None:
             fo = open(fout, "w")
         
@@ -169,7 +174,7 @@ class EpaClassifier:
                         output = origin_taxa_name+ "\t" + self.print_ranks(ranks, lws, minlw) + "\t*"
                     else:
                         output = origin_taxa_name+ "\t" + self.print_ranks(ranks, lws, minlw) + "\to"
-                    if self.v:
+                    if self.cfg.verbose:
                         print(output) 
                     if fout!=None:
                         fo.write(output + "\n")
@@ -179,12 +184,12 @@ class EpaClassifier:
         with open(self.noalign) as fnoa:
             lines = fnoa.readlines()
             for line in lines:
-                if self.v:
+                if self.cfg.verbose:
                     print(line.strip())
                 if fout!=None:
                     fo.write(line)
         
-        if self.v:
+        if self.cfg.verbose:
             print(output2) 
         if fout!=None:
             fo.write(output2)

@@ -49,16 +49,16 @@ class EpacConfig:
         self.refjson_fname  = args.ref_fname        
         self.epac_home = os.path.abspath("") + "/"
         self.num_threads = args.num_threads        
-        self.raxml_outdir = "raxml_output/"
-        self.raxml_outdir_abs = os.path.abspath(self.raxml_outdir)
         self.basepath = os.path.dirname(os.path.abspath(__file__))
         self.reftree_home = os.path.abspath("reftree/") + "/"
         self.temp_dir = self.basepath + "/tmp/"
+        self.raxml_outdir = self.temp_dir #"raxml_output/"
+        self.raxml_outdir_abs = os.path.abspath(self.raxml_outdir)
         self.results_home = os.path.abspath("results/") + "/"
         self.set_defaults()
         if args.config_fname:
             self.read_from_file(args.config_fname)
-        self.name = str(time.time())
+        self.name = datetime.datetime.now().strftime("%Y%m%d_%H%M%S") #str(time.time())
         results_name = self.reftree_name + "_" + datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         self.results_dir = self.results_home + results_name + "/"
 
