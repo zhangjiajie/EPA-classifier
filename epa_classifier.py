@@ -13,7 +13,7 @@ try:
     from epac.json_util import jsonparser, json_checker
     from epac.msa import muscle, hmmer
     from epac.erlang import erlang
-    from epac.taxonomy_util import TaxonomyUtils
+    from epac.taxonomy_util import Taxonomy
 except ImportError:
     print("Some packages are missing, please re-downloand EPA-classifier")
     sys.exit()
@@ -322,7 +322,7 @@ class EpaClassifier:
             ranks = self.bid_taxonomy_map[br_id]
             for i in range(len(ranks)):
                 rank = ranks[i]
-                if rank != TaxonomyUtils.EMPTY_RANK:
+                if rank != Taxonomy.EMPTY_RANK:
                     rw_total[rank] = rw_total.get(rank, 0) + lweight
                     lowest_rank = rank
                     if not rank in rb:
@@ -351,7 +351,7 @@ class EpaClassifier:
         a_conf = [0.] * len(a_ranks)
         for i in range(len(a_conf)):
             rank = a_ranks[i]
-            if rank != TaxonomyUtils.EMPTY_RANK:
+            if rank != Taxonomy.EMPTY_RANK:
                 a_conf[i] = rw_total[rank]
 
         return a_ranks, a_conf
@@ -434,9 +434,9 @@ def parse_args():
     parser.add_argument("-T", dest="num_threads", type=int, default=None,
             help="""Specify the number of CPUs.  Default: 2""")
     parser.add_argument("-v", dest="verbose", action="store_true",
-            help="""Print the results on screen.""")
+            help="""Print classification results and additional info messages to the console.""")
     parser.add_argument("-debug", dest="debug", action="store_true",
-            help="""debug model, intermediate files will not be cleaned up.""")
+            help="""Debug mode, intermediate files will not be cleaned up.""")
     parser.add_argument("-a", dest="align_only", action="store_true",
             help="""Alignment only: Do not perform classification, just build the combined alignment (RS+QS) (default: OFF)""")
     parser.add_argument("-j", dest="jplace_fname",

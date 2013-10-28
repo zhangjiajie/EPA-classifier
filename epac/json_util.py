@@ -152,6 +152,42 @@ class jsonparser:
         with open(fout, "w") as fo:
             for line in lines:
                 fo.write(line)
+                
+class jsonwriter:
+    """This class parse the temp epa json file and generated a json file that has annotated taxonomy"""
+    def __init__(self, out_fname):
+        self.out_fname = out_fname
+        self.jdata = {}
+        self.jdata["version"] = "1.0"
+        self.jdata["author"] = "Jiajie Zhang"
+        
+    def set_taxonomy(self, bid_ranks_map):
+        self.jdata["taxonomy"] = bid_ranks_map
+
+    def set_tree(self, tr):
+        self.jdata["tree"] = tr
+        self.jdata["raxmltree"] = Tree(tr, format=1).write(format=5)
+        
+    def set_sequences(self, seqs):    
+        self.jdata["sequences"] = seqs
+        
+    def set_hmm_profile(self, fprofile):    
+        with open(fprofile) as fp:
+            lines = fp.readlines()
+        self.jdata["hmm_profile"] = lines
+       
+    def set_origin_taxonomy(self, orig_tax_map):
+        self.jdata["origin_taxonomy"] = orig_tax_map
+        
+    def set_rate(self, rate):    
+        self.jdata["rate"] = rate
+        
+    def set_nodes_height(self, height):    
+        self.jdata["node_height"] = height
+
+    def dump(self):
+        with open(self.out_fname, "w") as fo:
+            json.dump(self.jdata, fo, indent=4, sort_keys=True)                
 
 
 if __name__ == "__main__":

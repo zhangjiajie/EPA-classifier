@@ -46,9 +46,9 @@ class EpacConfig:
     def __init__(self, args): 
         self.verbose = args.verbose
         self.debug = args.debug
-        self.refjson_fname  = args.ref_fname        
-        self.epac_home = os.path.abspath("") + "/"
+        self.refjson_fname = args.ref_fname        
         self.num_threads = args.num_threads        
+        self.epac_home = os.path.abspath("") + "/"
         self.basepath = os.path.dirname(os.path.abspath(__file__))
         self.reftree_home = os.path.abspath("reftree/") + "/"
         self.temp_dir = self.basepath + "/tmp/"
@@ -59,7 +59,7 @@ class EpacConfig:
         if args.config_fname:
             self.read_from_file(args.config_fname)
         self.name = datetime.datetime.now().strftime("%Y%m%d_%H%M%S") #str(time.time())
-        results_name = self.reftree_name + "_" + datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        results_name = self.name + "_" + datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         self.results_dir = self.results_home + results_name + "/"
 
     def set_defaults(self):
@@ -118,35 +118,8 @@ class EpacConfig:
         except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
             self.run_on_cluster = False
 
-        self.reftree_name = parser.get("reftree", "reftree_name")
-        self.reftree_dir = self.reftree_home + self.reftree_name + "/"
-        self.taxonomy_fname = parser.get("reftree", "taxonomy_file")
-
-        self.reftree_min_rank = parser.getint("reftree", "min_rank")
-        self.reftree_max_seqs_per_leaf = parser.getint("reftree", "max_seqs_per_leaf")
-        clades_str = parser.get("reftree", "clades_to_include")
-        self.reftree_clades_to_include = self.parse_clades(clades_str)
-        try:
-            clades_str = parser.get("reftree", "clades_to_ignore")
-        except ConfigParser.NoOptionError:
-            clades_str = ""            
-        self.reftree_clades_to_ignore = self.parse_clades(clades_str)
-            
         self.min_confidence = parser.getfloat("assignment", "min_confidence")
-
-    def parse_clades(self, clades_str):
-        clade_list = []
-        try:        
-            if clades_str:
-                clades = clades_str.split(",")
-                for clade in clades:
-                    toks = clade.split("|")
-                    clade_list += [(int(toks[0]), toks[1])]
-        except:
-            print "Invalid format in config parameter: clades_to_include"
-            sys.exit()
-
-        return clade_list
+        return parser
 
     def tmp_fname(self, fname):
         return self.temp_dir + fname.replace("%NAME%", self.name)
@@ -182,3 +155,47 @@ class EpacConfig:
             EpataxConfig.F_RESULT_STATS: self.results_dir + self.reftree_name + ".stats.txt",
             EpataxConfig.F_RESULT_MIS: self.results_dir + self.reftree_name + ".mis.txt"
             }[file_type]
+            
+class EpacTrainerConfig(EpacConfig):
+    
+    def __init__(self, args):
+        self.taxonomy_fname = args.taxonomy_fname
+        self.align_fname = args.align_fname
+        EpacConfig.__init__(self, args)
+        
+    def set_defaults(self):
+        EpacConfig.set_defaults(self)
+        # default settings below imply no taxonomy filtering, 
+        # i.e. all sequences from taxonomy file will be included into reference tree
+        self.reftree_min_rank = 0
+        self.reftree_max_seqs_per_leaf = 1e6
+        self.reftree_clades_to_include=[]
+        self.reftree_clades_to_ignore=[]
+
+    def read_from_file(self, config_fname):
+        parser = EpacConfig.read_from_file(self, config_fname)
+        
+        try:
+            self.reftree_min_rank = parser.getint("reftree", "min_rank")
+            self.reftree_max_seqs_per_leaf = parser.getint("reftree", "max_seqs_per_leaf")
+            clades_str = parser.get("reftree", "clades_to_include")
+            self.reftree_clades_to_include = self.parse_clades(clades_str)
+            clades_str = parser.get("reftree", "clades_to_ignore")
+            self.reftree_clades_to_ignore = self.parse_clades(clades_str)
+        except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
+            pass            
+        
+    def parse_clades(self, clades_str):
+        clade_list = []
+        try:        
+            if clades_str:
+                clades = clades_str.split(",")
+                for clade in clades:
+                    toks = clade.split("|")
+                    clade_list += [(int(toks[0]), toks[1])]
+        except:
+            print "Invalid format in config parameter: clades_to_include"
+            sys.exit()
+
+        return clade_list
+        
