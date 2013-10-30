@@ -138,15 +138,18 @@ class EpaClassifier:
         raxml = RaxmlWrapper(config)
         reftree_fname = self.cfg.tmp_fname("ref_%NAME%.tre")
         self.refjson.get_raxml_readable_tree(reftree_fname)
+        optmod_fname = self.cfg.tmp_fname("%NAME%.opt")
+        self.refjson.get_binary_model(optmod_fname)
         job_name = "epa_" + self.cfg.name
         try:
             reduced_align_fname = raxml.reduce_alignment(self.epa_alignment)
-            placements = raxml.run_epa(job_name, reduced_align_fname, reftree_fname).get_placement()
+            placements = raxml.run_epa(job_name, reduced_align_fname, reftree_fname, optmod_fname).get_placement()
         finally:
             if not self.cfg.debug:
                 raxml.cleanup(job_name)
                 FileUtils.remove_if_exists(reduced_align_fname)
                 FileUtils.remove_if_exists(reftree_fname)
+                FileUtils.remove_if_exists(optmod_fname)
             
         if fout!=None:
             fo = open(fout, "w")

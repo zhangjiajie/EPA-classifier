@@ -3,6 +3,7 @@ import sys
 import os
 import json
 import operator
+import base64
 from epac.ete2 import Tree, SeqGroup
 from subprocess import call
 
@@ -77,6 +78,14 @@ class RefJsonChecker:
         if "hmm_profile" in self.jdata:
             hmm_profile = self.jdata["hmm_profile"]
             if not isinstance(hmm_profile, list):
+                return False
+        else:
+            return False
+
+        #binary_model
+        if "binary_model" in self.jdata:
+            model_str = self.jdata["binary_model"]
+            if not isinstance(model_str, unicode):
                 return False
         else:
             return False
@@ -164,6 +173,11 @@ class RefJsonParser:
         with open(fout, "w") as fo:
             for line in lines:
                 fo.write(line)
+
+    def get_binary_model(self, fout):
+        model_str = self.jdata["binary_model"]
+        with open(fout, "wb") as fo:
+            fo.write(base64.b64decode(model_str))
                 
 class RefJsonBuilder:
     """This class builds the EPA Classifier reference json file"""
@@ -195,6 +209,11 @@ class RefJsonBuilder:
         
     def set_nodes_height(self, height):    
         self.jdata["node_height"] = height
+
+    def set_binary_model(self, model_fname):  
+        with open(model_fname, "rb") as fin:
+            model_str = base64.b64encode(fin.read())
+        self.jdata["binary_model"] = model_str
 
     def dump(self, out_fname):
         with open(out_fname, "w") as fo:

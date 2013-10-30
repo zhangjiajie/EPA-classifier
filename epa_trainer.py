@@ -220,8 +220,8 @@ class RefTreeBuilder:
             if not node.is_root() and hasattr(node, "B"):                
                 parent = node.up                
                 self.bid_ranks_map[node.B] = parent.ranks
-            else:
-                print "WARNING: branch label missing, mapping to taxon skipped (%s)" % node.name
+            elif self.cfg.verbose:
+                print "INFO: EPA branch label missing, mapping to taxon skipped (%s)" % node.name
         
     def write_branch_rank_map(self):
         with open(self.brmap_fname, "w") as fbrmap:    
@@ -303,6 +303,8 @@ class RefTreeBuilder:
         tp = tree_param(tree = self.reftree_lbl_str, origin_taxonomy = orig_tax)
         jw.set_rate(tp.get_speciation_rate())
         jw.set_nodes_height(self.node_height_map)
+        
+        jw.set_binary_model(self.optmod_fname)
         
         jw.dump(self.cfg.refjson_fname)
         
