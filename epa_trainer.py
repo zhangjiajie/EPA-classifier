@@ -99,7 +99,7 @@ class RefTreeBuilder:
     # RAxML call to convert multifurcating tree to the strictly bifurcating one
     def resolve_multif(self):
         print "\nReducing the alignment: \n"
-        red_align_fname = self.raxml_wrapper.reduce_alignment(self.refalign_fname)
+        self.reduced_refalign_fname = self.raxml_wrapper.reduce_alignment(self.refalign_fname)
         
         # hack: use CAT for large trees, since GAMMA has numerical problems with them
         if self.reftree_size > 10000 and self.cfg.raxml_model != "GTRCAT":
@@ -109,7 +109,7 @@ class RefTreeBuilder:
             orig_raxml_model = ""
 
         print "\nResolving multifurcation: \n"
-        raxml_params = ["-s", red_align_fname, "-g", self.reftree_mfu_fname]
+        raxml_params = ["-s", self.reduced_refalign_fname, "-g", self.reftree_mfu_fname]
         self.raxml_wrapper.run(self.mfresolv_job_name, raxml_params)
         if self.raxml_wrapper.result_exists(self.mfresolv_job_name):        
             self.raxml_wrapper.copy_result_tree(self.mfresolv_job_name, self.reftree_bfu_fname)
@@ -122,9 +122,8 @@ class RefTreeBuilder:
             
             # RAxML call to optimize model parameters and write them down to the binary model file
             print "\nOptimizing model parameters under GTR+GAMMA: \n"
-            raxml_params = ["-f", "e", "-s", red_align_fname, "-t", self.reftree_bfu_fname]
+            raxml_params = ["-f", "e", "-s", self.reduced_refalign_fname, "-t", self.reftree_bfu_fname]
             self.raxml_wrapper.run(self.optmod_job_name, raxml_params)
-            FileUtils.remove_if_exists(red_align_fname)
             if self.raxml_wrapper.result_exists(self.optmod_job_name):
                 self.raxml_wrapper.copy_optmod_params(self.optmod_job_name, self.optmod_fname)
                 if not self.cfg.debug:
@@ -236,7 +235,7 @@ class RefTreeBuilder:
 
         # TODO check this
         seqids = self.reftree_tax.get_leaf_names()
-        sg = SeqGroup(sequences = self.refalign_fname)
+        sg = SeqGroup(sequences = self.reduced_refalign_fname, format="phylip_relaxed")
         seqs = []
         for entri in sg.iter_entries():
             name = entri[0]
@@ -247,10 +246,18 @@ class RefTreeBuilder:
         seqs = sg.get_entries()    
         jw.set_sequences(seqs)
         
-        hmm = hmmer(self.cfg, self.refalign_fname)
-        fprofile = hmm.build_hmm_profile()
-        jw.set_hmm_profile(fprofile)
-        os.remove(fprofile)
+        # this stupid workaround is needed because RAxML outputs the reduced
+        # alignment in relaxed PHYLIP format, which is not supported by HMMER
+        refalign_fasta = self.cfg.tmp_fname("%NAME%_ref_reduced.fa")
+        sg.write(outfile=refalign_fasta)
+
+        try:
+            hmm = hmmer(self.cfg, refalign_fasta)
+            fprofile = hmm.build_hmm_profile()
+            jw.set_hmm_profile(fprofile)
+        finally:
+            FileUtils.remove_if_exists(refalign_fasta)
+            FileUtils.remove_if_exists(fprofile)
  
         orig_tax = self.taxonomy.map()
         jw.set_origin_taxonomy(orig_tax)
@@ -269,6 +276,7 @@ class RefTreeBuilder:
         FileUtils.remove_if_exists(self.optmod_fname)
         FileUtils.remove_if_exists(self.lblalign_fname)
         FileUtils.remove_if_exists(self.outgr_fname)
+        FileUtils.remove_if_exists(self.reduced_refalign_fname)
 
     # top-level function to build a reference tree    
     def build_ref_tree(self):

@@ -47,9 +47,9 @@ class hmmer:
                 newseq = newseq + s
         return newseq
     
-    def build_hmm_profile(self):
+    def build_hmm_profile(self, informat="afa"):
         #hmmbuild --informat afa refotu.hmm ref_outs_547.fas
-        call_str = [self.hmmbuildpath,"--informat", "afa", self.refprofile, self.refalign]
+        call_str = [self.hmmbuildpath,"--informat", informat, self.refprofile, self.refalign]
         if self.cfg.debug:
             print "\n" + ' '.join(call_str) + "\n"
         call(call_str) #, stdout=open(os.devnull, "w"), stderr=subprocess.STDOUT)
