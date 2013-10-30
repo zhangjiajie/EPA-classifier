@@ -2,20 +2,19 @@
 try:
     import sys
     import os
-    import json
     import time
     import glob
     from epac.ete2 import Tree, SeqGroup
     from epac.argparse import ArgumentParser
     from epac.config import EpacConfig
-    from epac.epa_util import epa
     from epac.raxml_util import RaxmlWrapper, FileUtils
-    from epac.json_util import jsonparser, json_checker
+    from epac.json_util import RefJsonParser, RefJsonChecker
     from epac.msa import muscle, hmmer
     from epac.erlang import erlang
     from epac.taxonomy_util import Taxonomy
-except ImportError:
+except ImportError, e:
     print("Some packages are missing, please re-downloand EPA-classifier")
+    print e
     sys.exit()
 
 
@@ -23,7 +22,7 @@ class EpaClassifier:
     def __init__(self, config):
         self.cfg = config
         try:
-            self.refjson = jsonparser(config.refjson_fname)
+            self.refjson = RefJsonParser(config.refjson_fname)
         except ValueError:
             print("Invalid json file format!")
             sys.exit()

@@ -4,11 +4,11 @@ import sys
 import os
 import shutil
 from epac.ete2 import Tree, SeqGroup
-from epac.argparse import ArgumentParser
+from epac.argparse import ArgumentParser,RawTextHelpFormatter
 from epac.config import EpacTrainerConfig
 from epac.raxml_util import RaxmlWrapper, FileUtils
 from epac.taxonomy_util import Taxonomy, GGTaxonomyFile, TaxTreeBuilder
-from epac.json_util import jsonwriter
+from epac.json_util import RefJsonBuilder
 from epac.erlang import tree_param 
 from epac.msa import hmmer
 
@@ -154,8 +154,6 @@ class RefTreeBuilder:
         epa_result = self.raxml_wrapper.run_epa(self.epalbl_job_name, red_align_fname, self.reftree_bfu_fname, self.optmod_fname)
         self.reftree_lbl_str = epa_result.get_std_newick_tree()
         if self.raxml_wrapper.epa_result_exists(self.epalbl_job_name):        
-#            result_fname = self.cfg.get_fname(EpataxConfig.F_TREE_BIF_UNROOTED_LBL)
-#            self.raxml_wrapper.copy_epa_orig_tree(self.epalbl_job_name, result_fname)
             if not self.cfg.debug:
                 self.raxml_wrapper.cleanup(self.epalbl_job_name)
         else:
@@ -217,22 +215,21 @@ class RefTreeBuilder:
             #    t.show()
             self.reftree_tax.write(outfile=self.reftree_tax_fname, format=3)
 
-    def write_branch_rank_map(self):
+    def build_branch_rank_map(self):
         fbrmap = open(self.brmap_fname, "w");
         self.bid_ranks_map = {}
         for node in self.reftree_tax.traverse("postorder"):
             if not node.is_root() and hasattr(node, "B"):                
                 parent = node.up                
-#                fbrmap.write(node.B + "\t" + str(parent.rank_level) + "\t" + parent.ranks[parent.rank_level] + "\n")
                 self.bid_ranks_map[node.B] = parent.ranks
-                fbrmap.write(node.B + "\t" + ";".join(parent.ranks) + "\n")
+#                fbrmap.write(node.B + "\t" + ";".join(parent.ranks) + "\n")
             else:
                 print "WARNING: branch label missing, mapping to taxon skipped"
         
         fbrmap.close()
         
     def write_json(self):
-        jw = jsonwriter(self.cfg.refjson_fname)
+        jw = RefJsonBuilder()
 
         jw.set_taxonomy(self.bid_ranks_map)
         jw.set_tree(self.reftree_lbl_str)
@@ -262,7 +259,7 @@ class RefTreeBuilder:
         jw.set_rate(tp.get_speciation_rate())
         jw.set_nodes_height(tp.get_nodesheight())
         
-        jw.dump()
+        jw.dump(self.cfg.refjson_fname)
         
         
     def cleanup(self):
@@ -292,20 +289,22 @@ class RefTreeBuilder:
         print "\n=======> Labeling the reference tree with taxonomic ranks" + "...\n"
         self.label_reftree_with_ranks()
         print "\n========> Saving the mapping between EPA branch labels and ranks" + "...\n"
-        self.write_branch_rank_map()
+        self.build_branch_rank_map()
         self.write_json()
         print "\n***********  Done!  **********\n"
 
 def parse_args():
-    parser = ArgumentParser(description="Build a reference tree for EPA taxonomic placement.")
+    parser = ArgumentParser(description="Build a reference tree for EPA taxonomic placement.",
+    epilog="Example: ./epa_trainer.py -t example/training_tax.txt -s example/training_seq.fa -r example/ref.json",
+    formatter_class=RawTextHelpFormatter)
     parser.add_argument("-t", dest="taxonomy_fname",
             help="""Reference taxonomy file.""")
     parser.add_argument("-s", dest="align_fname",
             help="""Reference alignment file. Sequences must be aligned, their IDs must correspond to those
-            in taxonomy file.""")
+in taxonomy file.""")
     parser.add_argument("-r", dest="ref_fname",
             help="""Reference output file. It will contain reference alignment, phylogenetic tree and other
-            information needed for taxonomic placement of query sequences.""")
+information needed for taxonomic placement of query sequences.""")
     parser.add_argument("-T", dest="num_threads", type=int, default=None,
             help="""Specify the number of CPUs.  Default: 2""")            
     parser.add_argument("-v", dest="verbose", action="store_true",

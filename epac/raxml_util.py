@@ -6,7 +6,7 @@ import glob
 import shutil
 import datetime
 from subprocess import call,STDOUT
-from json_util import jsonparser
+from json_util import EpaJsonParser
 
 class FileUtils:
 
@@ -72,8 +72,8 @@ class RaxmlWrapper:
         
         jp_fname = self.make_raxml_fname("portableTree", job_name) + ".jplace"
         if os.path.isfile(jp_fname):
-            jp = jsonparser(jp_fname)
-            return jp        
+            jp = EpaJsonParser(jp_fname)
+            return jp
         else:
             print "RAxML EPA run failed, please examine the log for details:\n %s" \
                     % self.make_raxml_fname("output", job_name)
@@ -112,7 +112,7 @@ class RaxmlWrapper:
                 raxml_call_cmd[i] = FileUtils.rebase(raxml_call_cmd[i], self.config.epatax_home, self.config.cluster_epatax_home)
         raxml_call_str = ' '.join(raxml_call_cmd)
                 
-        script_fname = self.config.get_fname(EpataxConfig.F_QSUB_SCRIPT)
+        script_fname = self.config.tmp_fname("%NAME%_sub.sh")
         FileUtils.remove_if_exists(script_fname)
         shutil.copy(self.config.cluster_qsub_script, script_fname)
         qsub_job_name = "epa"        
@@ -121,14 +121,16 @@ class RaxmlWrapper:
             fout.write("\n")            
             fout.write(raxml_call_str + "\n")
 
-        script_fname = FileUtils.rebase(script_fname, self.config.epatax_home, self.config.cluster_epatax_home)
-        qsub_call_str += ["qsub", "-sync", "y", script_fname]
+        cluster_script_fname = FileUtils.rebase(script_fname, self.config.epatax_home, self.config.cluster_epatax_home)
+        qsub_call_str += ["qsub", "-sync", "y", cluster_script_fname]
 
         print raxml_call_str + "\n"
         print ' '.join(qsub_call_str) + "\n"
 #        sys.exit()
 
         call(qsub_call_str)
+        if not self.config.debug:
+            FileUtils.remove_if_exists(script_fname)
 
     def result_exists(self, job_name):
         if os.path.isfile(self.make_raxml_fname("result", job_name)):
