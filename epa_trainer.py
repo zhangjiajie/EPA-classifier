@@ -215,18 +215,56 @@ class RefTreeBuilder:
             self.reftree_tax.write(outfile=self.reftree_tax_fname, format=3)
 
     def build_branch_rank_map(self):
-        fbrmap = open(self.brmap_fname, "w");
         self.bid_ranks_map = {}
         for node in self.reftree_tax.traverse("postorder"):
             if not node.is_root() and hasattr(node, "B"):                
                 parent = node.up                
                 self.bid_ranks_map[node.B] = parent.ranks
-#                fbrmap.write(node.B + "\t" + ";".join(parent.ranks) + "\n")
             else:
-                print "WARNING: branch label missing, mapping to taxon skipped"
+                print "WARNING: branch label missing, mapping to taxon skipped (%s)" % node.name
         
-        fbrmap.close()
+    def write_branch_rank_map(self):
+        with open(self.brmap_fname, "w") as fbrmap:    
+            for node in self.reftree_tax.traverse("postorder"):
+                if not node.is_root() and hasattr(node, "B"):                
+                    fbrmap.write(node.B + "\t" + ";".join(self.bid_ranks_map[node.B]) + "\n")
         
+    def calc_node_heights(self):
+        """Calculate node heights on the reference tree (used to define branch-length cutoff during classification step)
+           Algorithm is as follows:
+           Tip node or node resolved to Species level: height = 1 
+           Inner node resolved to Genus or above:      height = min(left_height, right_height) + 1 
+         """
+        nh_map = {}
+        dummy_added = False
+        for node in self.reftree_tax.traverse("postorder"):
+            if not node.is_root():
+                if not hasattr(node, "B"):                
+                    # In a rooted tree, there is always one more node/branch than in unrooted one
+                    # That's why one branch will be always not EPA-labelled after the rooting
+                    if not dummy_added: 
+                        node.B = "DDD"
+                        dummy_added = True
+                        species_rank = Taxonomy.EMPTY_RANK
+                    else:
+                        print "FATAL ERROR: More than one tree branch without EPA label (calc_node_heights)"
+                        sys.exit()
+                else:
+                    species_rank = self.bid_ranks_map[node.B][6]
+                bid = node.B
+                if node.is_leaf() or species_rank != Taxonomy.EMPTY_RANK:
+                    nh_map[bid] = 1
+                else:
+                    lchild = node.children[0]
+                    rchild = node.children[1]
+                    nh_map[bid] = min(nh_map[lchild.B], nh_map[rchild.B]) + 1
+
+        # remove heights for dummy nodes, since there won't be any placements on them
+        if dummy_added:
+            del nh_map["DDD"]
+            
+        self.node_height_map = nh_map
+
     def write_json(self):
         jw = RefJsonBuilder()
 
@@ -264,7 +302,7 @@ class RefTreeBuilder:
         
         tp = tree_param(tree = self.reftree_lbl_str, origin_taxonomy = orig_tax)
         jw.set_rate(tp.get_speciation_rate())
-        jw.set_nodes_height(tp.get_nodesheight())
+        jw.set_nodes_height(self.node_height_map)
         
         jw.dump(self.cfg.refjson_fname)
         
@@ -296,8 +334,10 @@ class RefTreeBuilder:
         self.restore_rooting()
         print "\n=======> Labeling the reference tree with taxonomic ranks" + "...\n"
         self.label_reftree_with_ranks()
-        print "\n========> Saving the mapping between EPA branch labels and ranks" + "...\n"
+        print "\n========> Building the mapping between EPA branch labels and ranks" + "...\n"
         self.build_branch_rank_map()
+        self.calc_node_heights()
+        print "\n=========> Saving the reference JSON file" + "...\n"
         self.write_json()
         print "\n***********  Done!  **********\n"
 
