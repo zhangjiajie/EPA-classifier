@@ -13,6 +13,9 @@ from epac.erlang import tree_param
 from epac.msa import hmmer
 
 class RefTreeBuilder:
+    # this prefix will be added to every sequence name in reference to prevent 
+    # name clashes with query sequences, which are coded with numbers
+    REF_SEQ_PREFIX="r_"
 
     def __init__(self, config): 
         self.cfg = config
@@ -20,10 +23,8 @@ class RefTreeBuilder:
         self.epalbl_job_name = "epalbl"
         self.optmod_job_name = "optmod"
         self.raxml_wrapper = RaxmlWrapper(config)
-        self.taxonomy = GGTaxonomyFile(config.taxonomy_fname)
+        self.taxonomy = GGTaxonomyFile(config.taxonomy_fname, RefTreeBuilder.REF_SEQ_PREFIX)
         
-        #just for now - TODO: filter
-        self.refalign_fname = self.cfg.align_fname
         self.outgr_fname = self.cfg.tmp_fname("%NAME%_outgr.tre")
         self.reftree_mfu_fname = self.cfg.tmp_fname("%NAME%_mfu.tre")
         self.reftree_bfu_fname = self.cfg.tmp_fname("%NAME%_bfu.tre")
@@ -53,8 +54,19 @@ class RefTreeBuilder:
         #    t.show()
 
     def export_ref_alignment(self):
-        seqlist_fname = self.cfg.get_fname(EpataxConfig.F_SEQLIST_REF)
-        align_fname = self.cfg.get_fname(EpataxConfig.F_ALIGN_REF)
+        #TODO filtering
+        self.refalign_fname = self.cfg.tmp_fname("%NAME%_matrix.afa")
+        with open(self.cfg.align_fname, "r") as fin:
+            with open(self.refalign_fname, "w") as fout:
+                while True:
+                    line = fin.readline()
+                    if not line: break
+                    sid = line.replace(">", ">" + RefTreeBuilder.REF_SEQ_PREFIX, 1)
+                    fout.write(sid) 
+                    fout.write(fin.readline())
+        
+        #seqlist_fname = self.cfg.get_fname(EpataxConfig.F_SEQLIST_REF)
+        #align_fname = self.cfg.get_fname(EpataxConfig.F_ALIGN_REF)
         #self.align_utils.export_alignment(seqlist_fname, align_fname)
 
     def export_ref_taxonomy(self):
@@ -317,6 +329,7 @@ class RefTreeBuilder:
         FileUtils.remove_if_exists(self.lblalign_fname)
         FileUtils.remove_if_exists(self.outgr_fname)
         FileUtils.remove_if_exists(self.reduced_refalign_fname)
+        FileUtils.remove_if_exists(self.refalign_fname)
 
     # top-level function to build a reference tree    
     def build_ref_tree(self):
@@ -324,7 +337,7 @@ class RefTreeBuilder:
         self.build_multif_tree()
 #        sys.exit()        
         print "\n==> Building the reference alignment " + "...\n"
-#        self.export_ref_alignment()
+        self.export_ref_alignment()
 #        self.export_ref_taxonomy()
         print "\n===> Saving the outgroup for later re-rooting " + "...\n"
         self.save_rooting()

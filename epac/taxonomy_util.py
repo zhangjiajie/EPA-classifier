@@ -39,8 +39,9 @@ class Taxonomy:
 class GGTaxonomyFile(Taxonomy):
     rank_placeholders = ["k__", "p__", "c__", "o__", "f__", "g__", "s__"]    
 
-    def __init__(self, tax_fname):
+    def __init__(self, tax_fname, prefix=""):
         self.tax_fname = tax_fname        
+        self.prefix = prefix
         self.seq_ranks_map = {}
         self.load_taxonomy()
 
@@ -88,7 +89,7 @@ class GGTaxonomyFile(Taxonomy):
         for line in fin:
             line = line.strip()
             toks = line.split("\t")
-            sid = toks[0]
+            sid = self.prefix + toks[0]
             ranks_str = toks[1]
             ranks = ranks_str.split(";")
             for i in range(len(ranks)):
