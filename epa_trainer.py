@@ -148,21 +148,30 @@ class RefTreeBuilder:
             print "RAxML run failed (mutlifurcation resolution), please examine the log for details: %s" \
                     % self.raxml_wrapper.make_raxml_fname("output", self.mfresolv_job_name)
             sys.exit()  
-
+            
+    def load_reduced_refalign(self):
+        formats = ["fasta", "phylip_relaxed"]
+        for fmt in formats:
+            try:
+                self.reduced_refalign_seqs = SeqGroup(sequences=self.reduced_refalign_fname, format = fmt)
+                break
+            except:
+                pass
+        if self.reduced_refalign_seqs == None:
+            print("FATAL ERROR: Invalid input file format in %s! (load_reduced_refalign)" % self.reduced_refalign_fname)
+            sys.exit()
+            
     # dummy EPA run to label the branches of the reference tree, which we need to build a mapping to tax ranks    
     def epa_branch_labeling(self):
         # create alignment with dummy query seq
-        shutil.copy(self.refalign_fname, self.lblalign_fname)
-        with open(self.refalign_fname, "r") as fin:
-            fin.readline()
-            seqlen = len(fin.readline().strip())        
+        seqlen = len(self.reduced_refalign_seqs.get_seqbyid(0))
+        self.reduced_refalign_seqs.write(format="fasta", outfile=self.lblalign_fname)
         
         with open(self.lblalign_fname, "a") as fout:
             fout.write(">" + "DUMMY131313" + "\n")        
             fout.write("A"*seqlen + "\n")        
 	
-        red_align_fname = self.raxml_wrapper.reduce_alignment(self.lblalign_fname)
-        epa_result = self.raxml_wrapper.run_epa(self.epalbl_job_name, red_align_fname, self.reftree_bfu_fname, self.optmod_fname)
+        epa_result = self.raxml_wrapper.run_epa(self.epalbl_job_name, self.lblalign_fname, self.reftree_bfu_fname, self.optmod_fname)
         self.reftree_lbl_str = epa_result.get_std_newick_tree()
         if self.raxml_wrapper.epa_result_exists(self.epalbl_job_name):        
             if not self.cfg.debug:
@@ -283,23 +292,13 @@ class RefTreeBuilder:
         jw.set_taxonomy(self.bid_ranks_map)
         jw.set_tree(self.reftree_lbl_str)
 
-        # TODO check this
-        seqids = self.reftree_tax.get_leaf_names()
-        sg = SeqGroup(sequences = self.reduced_refalign_fname, format="phylip_relaxed")
-        seqs = []
-        for entri in sg.iter_entries():
-            name = entri[0]
-            if name in seqids:
-                seqs.append(entri)
-            
-        # TODO fix
-        seqs = sg.get_entries()    
+        seqs = self.reduced_refalign_seqs.get_entries()    
         jw.set_sequences(seqs)
         
         # this stupid workaround is needed because RAxML outputs the reduced
         # alignment in relaxed PHYLIP format, which is not supported by HMMER
         refalign_fasta = self.cfg.tmp_fname("%NAME%_ref_reduced.fa")
-        sg.write(outfile=refalign_fasta)
+        self.reduced_refalign_seqs.write(outfile=refalign_fasta)
 
         try:
             hmm = hmmer(self.cfg, refalign_fasta)
@@ -343,6 +342,7 @@ class RefTreeBuilder:
         self.save_rooting()
         print "\n====> RAxML call: resolve multifurcation " + "...\n"
         self.resolve_multif()
+        self.load_reduced_refalign()
         print "\n=====> RAxML-EPA call: labeling the branches " + "...\n"
         self.epa_branch_labeling()
         print "\n======> Re-rooting the reference tree" + "...\n"
