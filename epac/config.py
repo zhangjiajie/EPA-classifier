@@ -48,8 +48,8 @@ class EpacConfig:
         self.debug = args.debug
         self.refjson_fname = args.ref_fname        
         self.num_threads = args.num_threads        
-        self.epac_home = os.path.abspath("") + "/"
         self.basepath = os.path.dirname(os.path.abspath(__file__))
+        self.epac_home = os.path.abspath(os.path.join(self.basepath, os.pardir)) + "/"
         self.reftree_home = os.path.abspath("reftree/") + "/"
         self.temp_dir = self.basepath + "/tmp/"
         self.raxml_outdir = self.temp_dir #"raxml_output/"
