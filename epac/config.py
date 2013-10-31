@@ -113,7 +113,7 @@ class EpacConfig:
         
         try:        
             self.run_on_cluster = parser.getboolean("cluster", "run_on_cluster")
-            self.cluster_epatax_home = parser.get("cluster", "cluster_epatax_home") + "/"
+            self.cluster_epac_home = parser.get("cluster", "cluster_epac_home") + "/"
             self.cluster_qsub_script = parser.get("cluster", "cluster_qsub_script")
         except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
             self.run_on_cluster = False

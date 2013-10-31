@@ -109,7 +109,7 @@ class RaxmlWrapper:
         raxml_call_cmd = self.config.raxml_cmd + params        
         for i in range(len(raxml_call_cmd)):
             if isinstance(raxml_call_cmd[i], basestring):
-                raxml_call_cmd[i] = FileUtils.rebase(raxml_call_cmd[i], self.config.epatax_home, self.config.cluster_epatax_home)
+                raxml_call_cmd[i] = FileUtils.rebase(raxml_call_cmd[i], self.config.epac_home, self.config.cluster_epac_home)
         raxml_call_str = ' '.join(raxml_call_cmd)
                 
         script_fname = self.config.tmp_fname("%NAME%_sub.sh")
@@ -121,7 +121,7 @@ class RaxmlWrapper:
             fout.write("\n")            
             fout.write(raxml_call_str + "\n")
 
-        cluster_script_fname = FileUtils.rebase(script_fname, self.config.epatax_home, self.config.cluster_epatax_home)
+        cluster_script_fname = FileUtils.rebase(script_fname, self.config.epac_home, self.config.cluster_epac_home)
         qsub_call_str += ["qsub", "-sync", "y", cluster_script_fname]
 
         print raxml_call_str + "\n"
