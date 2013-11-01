@@ -8,6 +8,14 @@ import datetime
 import time
 import ConfigParser
 
+def get_param(parser, section, option, ctype=str, default=None):
+    if default is None:
+        ret = parser.get(section, option)
+    else:
+        confdict = parser.__dict__.get('_sections')
+        ret = confdict.get(section).get(option, default)
+    return ctype(ret)
+
 class EpacConfig:
     F_ALIGN_REF=1
     F_ALIGN_LBLQ=2
@@ -67,8 +75,12 @@ class EpacConfig:
         self.hmmer_home = self.epac_home + "/epac/bin" + "/"
         self.raxml_home = self.epac_home + "/epac/bin" + "/"
         self.raxml_exec = "raxmlHPC-PTHREADS-SSE3"
+        self.raxml_model = "GTRGAMMA"
         self.raxml_remote_host = ""
-    
+        self.epa_load_optmod = True
+        self.epa_use_heuristic = False
+        self.epa_heur_rate = 0.01
+        
     def read_from_file(self, config_fname):
         if not os.path.exists(config_fname):
             print "Config file not found: " + config_fname
@@ -176,11 +188,11 @@ class EpacTrainerConfig(EpacConfig):
         parser = EpacConfig.read_from_file(self, config_fname)
         
         try:
-            self.reftree_min_rank = parser.getint("reftree", "min_rank")
-            self.reftree_max_seqs_per_leaf = parser.getint("reftree", "max_seqs_per_leaf")
-            clades_str = parser.get("reftree", "clades_to_include")
+            self.reftree_min_rank = get_param(parser, "reftree", "min_rank", int, self.reftree_min_rank)
+            self.reftree_max_seqs_per_leaf = get_param(parser, "reftree", "max_seqs_per_leaf", int, self.reftree_max_seqs_per_leaf)
+            clades_str = get_param(parser, "reftree", "clades_to_include", str, "")
             self.reftree_clades_to_include = self.parse_clades(clades_str)
-            clades_str = parser.get("reftree", "clades_to_ignore")
+            clades_str = get_param(parser, "reftree", "clades_to_ignore", str, "")
             self.reftree_clades_to_ignore = self.parse_clades(clades_str)
         except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
             pass            

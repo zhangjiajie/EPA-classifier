@@ -80,6 +80,9 @@ class GGTaxonomyFile(Taxonomy):
     def items(self):
         return self.seq_ranks_map.items()
         
+    def iteritems(self):
+        return self.seq_ranks_map.items()
+
     def map(self):
         return self.seq_ranks_map
 
@@ -150,7 +153,7 @@ class TaxTreeBuilder:
         seq_ids = []
         # sequences are leafs of the tree, so they always have the lowest taxonomy level (e.g. "species"+1)        
         tax_seq_level = self.taxonomy.max_rank_level() + 1
-        for sid, ranks in self.taxonomy.items():
+        for sid, ranks in self.taxonomy.iteritems():
             k += 1
             if self.config.verbose and k % 1000 == 0:
                 print "Processed nodes: ", k, ", added: ", added, ", skipped: ", k - added

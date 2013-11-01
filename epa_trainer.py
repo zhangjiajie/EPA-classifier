@@ -38,6 +38,7 @@ class RefTreeBuilder:
         c = self.cfg
         tb = TaxTreeBuilder(c, self.taxonomy)
         (t, ids) = tb.build(c.reftree_min_rank, c.reftree_max_seqs_per_leaf, c.reftree_clades_to_include, c.reftree_clades_to_ignore)
+        self.reftree_ids = frozenset(ids)
         self.reftree_size = len(ids)
         self.reftree_multif = t
 
@@ -54,30 +55,36 @@ class RefTreeBuilder:
         #    t.show()
 
     def export_ref_alignment(self):
-        #TODO filtering
+        """This function transforms the input alignment in the following way:
+           1. Filter out sequences which are not part of the reference tree
+           2. Add sequence name prefix (r_)"""
         self.refalign_fname = self.cfg.tmp_fname("%NAME%_matrix.afa")
         with open(self.cfg.align_fname, "r") as fin:
             with open(self.refalign_fname, "w") as fout:
                 while True:
                     line = fin.readline()
-                    if not line: break
-                    sid = line.replace(">", ">" + RefTreeBuilder.REF_SEQ_PREFIX, 1)
-                    fout.write(sid) 
-                    fout.write(fin.readline())
+                    if not line: 
+                        break
+                    sid = RefTreeBuilder.REF_SEQ_PREFIX + line.strip()[1:]
+                    if sid in self.reftree_ids:
+                        fout.write(">" +  sid + "\n") 
+                        fout.write(fin.readline())
+                    else:
+                        fin.readline()    
         
-        #seqlist_fname = self.cfg.get_fname(EpataxConfig.F_SEQLIST_REF)
-        #align_fname = self.cfg.get_fname(EpataxConfig.F_ALIGN_REF)
-        #self.align_utils.export_alignment(seqlist_fname, align_fname)
-
     def export_ref_taxonomy(self):
-        seqlist_fname = self.cfg.get_fname(EpataxConfig.F_SEQLIST_REF)
-        tax_fname = self.cfg.get_fname(EpataxConfig.F_TAXONOMY_REF)
-        with open(seqlist_fname) as fin:
-            seq_list = fin.read().splitlines()
-        with open(tax_fname, "w") as fout:
-            for sid in seq_list:
-                ranks_str = self.taxonomy.lineage_str(sid, True) 
-                fout.write(sid + "\t" + ranks_str + "\n")   
+        self.taxonomy_map = {}
+        
+        for sid, ranks in self.taxonomy.iteritems():
+            if sid in self.reftree_ids:
+                self.taxonomy_map[sid] = ranks
+            
+        if self.cfg.debug:
+            tax_fname = self.cfg.tmp_fname("%NAME%_tax.txt")
+            with open(tax_fname, "w") as fout:
+                for sid, ranks in self.taxonomy_map.iteritems():
+                    ranks_str = self.taxonomy.lineage_str(sid, True) 
+                    fout.write(sid + "\t" + ranks_str + "\n")   
 
     def save_rooting(self):
         rt = self.reftree_multif
@@ -308,7 +315,7 @@ class RefTreeBuilder:
             FileUtils.remove_if_exists(refalign_fasta)
             FileUtils.remove_if_exists(fprofile)
  
-        orig_tax = self.taxonomy.map()
+        orig_tax = self.taxonomy_map
         jw.set_origin_taxonomy(orig_tax)
         
         tp = tree_param(tree = self.reftree_lbl_str, origin_taxonomy = orig_tax)
@@ -337,7 +344,7 @@ class RefTreeBuilder:
 #        sys.exit()        
         print "\n==> Building the reference alignment " + "...\n"
         self.export_ref_alignment()
-#        self.export_ref_taxonomy()
+        self.export_ref_taxonomy()
         print "\n===> Saving the outgroup for later re-rooting " + "...\n"
         self.save_rooting()
         print "\n====> RAxML call: resolve multifurcation " + "...\n"
