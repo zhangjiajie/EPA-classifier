@@ -17,37 +17,6 @@ def get_param(parser, section, option, ctype=str, default=None):
     return ctype(ret)
 
 class EpacConfig:
-    F_ALIGN_REF=1
-    F_ALIGN_LBLQ=2
-    F_ALIGN_QUERY=3
-
-    F_TREE_MULTIF=11
-    F_TREE_MULTIF_TAX=12
-    F_TREE_OUTGR=13
-    F_TREE_BIF_UNROOTED=14
-    F_TREE_BIF_UNROOTED_LBL=15
-    F_TREE_BIF_ROOTED_LBL=16
-    F_TREE_BIF_ROOTED=17
-    F_TREE_BIF_ROOTED_TAX=18
-    F_TREE_EPA_RESULT=19
-    F_TREE_EPA_RESULT_TAX=20
-
-    F_SEQLIST_REF=31
-    F_SEQLIST_LBLQ=32
-
-    F_TAXONOMY_REF=41
-
-    F_MAP_BRANCH_RANK=51
-    F_OPT_MODEL=52
-
-    F_QSUB_SCRIPT = 61,
-
-    F_RESULT_TAX_ASSIGN=71
-    F_RESULT_STATS=72
-    F_RESULT_MIS=73
-    F_RESULT_BRANCH_ASSIGN=74
-    F_RESULT_LH_WEIGHTS=75
-
     def __init__(self):
         self.set_defaults()
         
@@ -136,38 +105,6 @@ class EpacConfig:
     def tmp_fname(self, fname):
         return self.temp_dir + fname.replace("%NAME%", self.name)
     
-    def get_fname(self, file_type):
-        return {
-            EpataxConfig.F_ALIGN_REF: self.reftree_dir + self.reftree_name + ".fasta",
-            EpataxConfig.F_ALIGN_LBLQ: self.temp_dir + self.reftree_name + "_lblq.fasta",
-            EpataxConfig.F_ALIGN_QUERY: self.temp_dir + self.reftree_name + "_query.fasta",
-
-            EpataxConfig.F_TREE_MULTIF: self.temp_dir + self.reftree_name + "_mfu.tre",
-            EpataxConfig.F_TREE_MULTIF_TAX: self.temp_dir + self.reftree_name + "_mfu_tax.tre",
-            EpataxConfig.F_TREE_OUTGR: self.temp_dir + self.reftree_name + "_outgr.tre",
-            EpataxConfig.F_TREE_BIF_UNROOTED: self.reftree_dir + self.reftree_name + ".tre",
-            EpataxConfig.F_TREE_BIF_UNROOTED_LBL: self.temp_dir + self.reftree_name + "_bfu_lbl.tre",
-            EpataxConfig.F_TREE_BIF_ROOTED_LBL: self.temp_dir + self.reftree_name + "_bfr_lbl.tre",
-            EpataxConfig.F_TREE_BIF_ROOTED: self.temp_dir + self.reftree_name + "_bfr.tre",
-            EpataxConfig.F_TREE_BIF_ROOTED_TAX: self.temp_dir + self.reftree_name + "_bfr_tax.tre",
-            EpataxConfig.F_TREE_EPA_RESULT: self.results_dir + self.reftree_name + "_epa.tre",
-            EpataxConfig.F_TREE_EPA_RESULT_TAX: self.results_dir + self.reftree_name + "_epa_tax.tre",
-
-            EpataxConfig.F_SEQLIST_REF: self.reftree_dir + self.reftree_name + "_seq.txt",
-            EpataxConfig.F_SEQLIST_LBLQ: self.data_dir + "greengenes_lblq_seq.txt",
-
-            EpataxConfig.F_TAXONOMY_REF: self.reftree_dir + self.reftree_name + "_tax.txt",
-
-            EpataxConfig.F_MAP_BRANCH_RANK: self.reftree_dir + self.reftree_name + ".map",
-            EpataxConfig.F_OPT_MODEL: self.reftree_dir + self.reftree_name + ".opt",
-
-            EpataxConfig.F_QSUB_SCRIPT: self.temp_dir + self.reftree_name + "_sub.sh",
-
-            EpataxConfig.F_RESULT_TAX_ASSIGN: self.results_dir + self.reftree_name + ".assigned.txt",
-            EpataxConfig.F_RESULT_STATS: self.results_dir + self.reftree_name + ".stats.txt",
-            EpataxConfig.F_RESULT_MIS: self.results_dir + self.reftree_name + ".mis.txt"
-            }[file_type]
-            
 class EpacTrainerConfig(EpacConfig):
     
     def __init__(self, args):
