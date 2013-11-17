@@ -146,12 +146,11 @@ class RefJsonParser:
         return self.jdata["origin_taxonomy"]
     
     def get_alignment(self, fout):
-        soutput = ""
         entries = self.jdata["sequences"]
-        for entr in entries:
-            soutput = soutput + ">" + entr[0] + "\n" + entr[1] + "\n"
         with open(fout, "w") as fo:
-            fo.write(soutput)
+            for entr in entries:
+                fo.write(">%s\n%s\n" % (entr[0], entr[1]))
+
         return fout
     
     def get_alignment_list(self):
