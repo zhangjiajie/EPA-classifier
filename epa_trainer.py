@@ -307,6 +307,8 @@ class RefTreeBuilder:
         refalign_fasta = self.cfg.tmp_fname("%NAME%_ref_reduced.fa")
         self.reduced_refalign_seqs.write(outfile=refalign_fasta)
 
+        print "Building the HMMER profile...\n"
+
         try:
             hmm = hmmer(self.cfg, refalign_fasta)
             fprofile = hmm.build_hmm_profile()
@@ -318,12 +320,14 @@ class RefTreeBuilder:
         orig_tax = self.taxonomy_map
         jw.set_origin_taxonomy(orig_tax)
         
+        print "Calculating the speciation rate...\n"
         tp = tree_param(tree = self.reftree_lbl_str, origin_taxonomy = orig_tax)
-        jw.set_rate(tp.get_speciation_rate())
+        jw.set_rate(tp.get_speciation_rate_fast())
         jw.set_nodes_height(self.node_height_map)
         
         jw.set_binary_model(self.optmod_fname)
         
+        print "Writing down the reference file...\n"
         jw.dump(self.cfg.refjson_fname)
         
         

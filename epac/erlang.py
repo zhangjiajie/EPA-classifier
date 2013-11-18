@@ -23,7 +23,7 @@ class tree_param:
         self.taxonomy = origin_taxonomy 
     
     def get_speciation_rate(self):
-        #pruning the input tree such that each speices only appear once
+        #pruning the input tree such that each species only appear once
         species = set()
         keepseqs = []
         for name in self.taxonomy.keys():
@@ -44,6 +44,37 @@ class tree_param:
             cnt = cnt + 1.0
         return float(cnt) / float(sumbr)
        
+    def get_speciation_rate_fast(self):
+        """ETE2 prune() function is extremely slow on large trees, so
+        this function don't use it and instead just removes "redundant"
+        species-level nodes one-by-one"""
+        species = set()
+        root = Tree(self.tree)
+        #pruning the input tree such that each species only appear once
+        for name in self.taxonomy.keys():
+            ranks = self.taxonomy[name]
+            sp = ranks[-1]
+            if sp != "-":
+                if sp in species:
+                    nodes = root.get_leaves_by_name(name)
+                    if len(nodes) == 1:
+                        nodes[0].delete(preserve_branch_length=True)
+                    else:
+                        raise ValueError("Node names not found in the tree: " + name)
+                else:
+                    species.add(sp)
+
+        # traverse the pruned tree, counting the number of speciation events and 
+        # summing up the branch lengths
+        sumbr = 0.0
+        cnt = 0
+        for node in root.traverse(strategy = "preorder"):
+            sumbr += node.dist
+            cnt += 1
+
+        # sp_rate = number_of_sp_events / sum_of_branch_lengts
+        return float(cnt) / float(sumbr)
+
     def get_nodesheight(self):
         root = Tree(self.tree)
         nh_map = {}
