@@ -1,0 +1,50 @@
+In this file, some aspects of advanced usage of EPA Classifier will be
+explained in more detail.
+
+1. Using a config file
+
+    Both epa_classifier and epa_trainer can load their parameters from
+    a config file, specified with a -c switch, e.g.:
+    
+        ./epa_classifier.py -r example/prokaryotes.json -q example/query.fa -c epac.cfg
+    
+    This option is especially helpful if you want to run EPA Classifier
+    on several different machines, since you can put all the 
+    machine-specific parameters (e.g. RAxML-SSE3/RAxML-AVX, number of 
+    threads etc) into a single file.
+    
+    The sample configuration file - epac.cfg.sample - will give you an
+    idea of available parameters and their meaning.
+   
+2. Running RAxML on remote host
+
+    Since RAxML run is the most heavy part of the pipeline, it sometimes
+    make sense to "offload" its execution to the different machine. 
+    EPA classifier provide two options for doing this:
+    
+    a) SSH
+    
+    Just add the following line to the [raxml] section of config file:
+    
+    raxml_remote_host=myhost
+    
+    b) Sun Grid Engine submission (SGE)
+    
+    To run RAxML on a cluster node, add following lines to the config 
+    file:
+    
+        [cluster]
+        run_on_cluster=true
+        cluster_epac_home=/path/to/epac/on/cluster/node
+        cluster_qsub_script=sandy.qsub
+
+    The last parameter is an "empty" submission script, e.g.:
+    
+#!/bin/bash
+#
+#$ -cwd -V                  # Shift directories and export variables
+#$ -q sandy.q               # Select the queue
+#$ -pe mvapich12 12         # Set the parallel environment
+#$ -l h_rt=24:00:00         # Request the time for the job
+    
+    
