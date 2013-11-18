@@ -24,7 +24,6 @@ class EpacConfig:
         self.verbose = args.verbose
         self.debug = args.debug
         self.refjson_fname = args.ref_fname        
-        self.num_threads = args.num_threads        
         self.basepath = os.path.dirname(os.path.abspath(__file__))
         self.epac_home = os.path.abspath(os.path.join(self.basepath, os.pardir)) + "/"
         self.reftree_home = os.path.abspath("reftree/") + "/"
@@ -35,6 +34,10 @@ class EpacConfig:
         self.set_defaults()
         if args.config_fname:
             self.read_from_file(args.config_fname)
+        # command line setting has preference over config file and default
+        if args.num_threads:
+            self.num_threads = args.num_threads        
+        self.check_raxml()    
         self.name = datetime.datetime.now().strftime("%Y%m%d_%H%M%S") #str(time.time())
         results_name = self.name + "_" + datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         self.results_dir = self.results_home + results_name + "/"
@@ -46,9 +49,27 @@ class EpacConfig:
         self.raxml_exec = "raxmlHPC-PTHREADS-SSE3"
         self.raxml_model = "GTRGAMMA"
         self.raxml_remote_host = ""
+        self.raxml_remote_call = False        
+        self.run_on_cluster = False
         self.epa_load_optmod = True
         self.epa_use_heuristic = False
         self.epa_heur_rate = 0.01
+        self.min_confidence = 0.2
+        self.num_threads = 2
+        
+    def check_raxml(self):
+        self.raxml_exec_full = self.raxml_home + self.raxml_exec
+        if self.raxml_remote_host in ["", "localhost"]:
+            self.raxml_remote_call = False
+            if not os.path.isdir(self.raxml_home):
+                print "RAxML home directory not found: %s" % self.raxml_home
+                sys.exit()
+            if not os.path.isfile(self.raxml_exec_full):
+                print "RAxML executable not found: %s" % self.raxml_exec_full
+                sys.exit()
+        else:
+            self.raxml_remote_call = True
+        self.raxml_cmd = [self.raxml_exec_full, "-p", "12345", "-T", str(self.num_threads), "-w", self.raxml_outdir_abs]
         
     def read_from_file(self, config_fname):
         if not os.path.exists(config_fname):
@@ -65,22 +86,8 @@ class EpacConfig:
         except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
             pass
 
-        self.raxml_exec_full = self.raxml_home + self.raxml_exec
-        if self.raxml_remote_host in ["", "localhost"]:
-            self.raxml_remote_call = False
-            if not os.path.isdir(self.raxml_home):
-                print "RAxML home directory not found: %s" % self.raxml_home
-                sys.exit()
-            if not os.path.isfile(self.raxml_exec_full):
-                print "RAxML executable not found: %s" % self.raxml_exec_full
-                sys.exit()
-        else:
-            self.raxml_remote_call = True
-
         self.raxml_model = parser.get("raxml", "raxml_model")
-        if not self.num_threads:
-            self.num_threads = parser.getint("raxml", "raxml_threads")
-        self.raxml_cmd = [self.raxml_exec_full, "-p", "12345", "-T", str(self.num_threads), "-w", self.raxml_outdir_abs]
+        self.num_threads = parser.getint("raxml", "raxml_threads")
 
         self.epa_use_heuristic = parser.getboolean("raxml", "epa_use_heuristic")
         self.epa_heur_rate = parser.getfloat("raxml", "epa_heur_rate")

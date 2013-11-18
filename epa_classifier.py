@@ -443,8 +443,8 @@ def parse_args():
             help="""Alignment only: Do not perform classification, just build the combined alignment (RS+QS) (default: OFF)""")
     parser.add_argument("-j", dest="jplace_fname",
             help="""Do not call RAxML EPA, use existing .jplace file as input instead.""")
-    parser.add_argument("-c", dest="config_fname", default="epac.cfg",
-            help="Config file name. Default: epac.cfg")
+    parser.add_argument("-c", dest="config_fname", default=None,
+            help="Config file name.")
     args = parser.parse_args()
     return args
 

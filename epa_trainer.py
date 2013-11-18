@@ -385,13 +385,14 @@ information needed for taxonomic placement of query sequences.""")
             help="""Print additional info messages to the console.""")
     parser.add_argument("-debug", dest="debug", action="store_true",
             help="""Debug mode, intermediate files will not be cleaned up.""")
-    parser.add_argument("-c", dest="config_fname", default="epac.cfg",
-            help="config file name (default: epatax.cfg)")
-    args = parser.parse_args()
+    parser.add_argument("-c", dest="config_fname", default=None,
+            help="""Config file name.""")
     
     if len(sys.argv) < 4:
         parser.print_help()
         sys.exit()
+
+    args = parser.parse_args()
     
     return args
  

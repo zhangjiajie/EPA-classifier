@@ -21,6 +21,9 @@ epa_heur_rate=0.005
 [hmmer]
 hmmer_home=epac/bin
 
+[muscle]
+muscle_home=epac/bin
+
 [reftree]
 
 # The following 4 parameters control taxonomy sampling, i.e. which
@@ -30,28 +33,29 @@ hmmer_home=epac/bin
 # Given a standard 7-level taxonomy, value min_rank=5 means that we only use sequences which
 # have a genus (rank=5) or species (rank=6) assigned, and ignore everything assigned to family/order/etc
 
-#min_rank=2
+min_rank=1
 
 # The maximum number of sequences for each low-level taxon to be included in the tree
 # E.g. with max_seqs_per_leaf=3, we only take at most 3 sequences for each species.
 # In case of seqs attached directly to the higher ranks (genus/family/etc), the number 
 # of included seqs will be higher and "proportional" to this value (s. code for details)
 
-#max_seqs_per_leaf=2
+max_seqs_per_leaf=3
 
 # Clades which should be used for constructing a reference tree
 # Format: rank_level1|rank_name1,rank_level2|rank_name2, ... rank_levelN|rank_nameN
 # Default: include everything
 
-#clades_to_include=0|k__Bacteria
+clades_to_include=0|k__Bacteria,0|Archaea
 #clades_to_include=2|c__Clostridia
 #clades_to_include=1|p__Firmicutes
 
 # Clades which should be ignored while constructing a reference tree
+
 # Format: s. above
 # Default: ignore nothing
 
-#clades_to_ignore=
+clades_to_ignore=
 
 [assignment]
 min_confidence=0.2
