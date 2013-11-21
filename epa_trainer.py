@@ -71,7 +71,7 @@ class RefTreeBuilder:
                         fout.write(fin.readline())
                     else:
                         fin.readline()    
-        
+    
     def export_ref_taxonomy(self):
         self.taxonomy_map = {}
         
@@ -167,7 +167,7 @@ class RefTreeBuilder:
         if self.reduced_refalign_seqs == None:
             print("FATAL ERROR: Invalid input file format in %s! (load_reduced_refalign)" % self.reduced_refalign_fname)
             sys.exit()
-            
+    
     # dummy EPA run to label the branches of the reference tree, which we need to build a mapping to tax ranks    
     def epa_branch_labeling(self):
         # create alignment with dummy query seq
@@ -177,7 +177,7 @@ class RefTreeBuilder:
         with open(self.lblalign_fname, "a") as fout:
             fout.write(">" + "DUMMY131313" + "\n")        
             fout.write("A"*seqlen + "\n")        
-	
+        
         epa_result = self.raxml_wrapper.run_epa(self.epalbl_job_name, self.lblalign_fname, self.reftree_bfu_fname, self.optmod_fname)
         self.reftree_lbl_str = epa_result.get_std_newick_tree()
         if self.raxml_wrapper.epa_result_exists(self.epalbl_job_name):        
@@ -206,6 +206,7 @@ class RefTreeBuilder:
             self.reftree_tax.write(outfile=self.reftree_lbl_fname, format=5)
 
     def label_reftree_with_ranks(self):
+        """labeling self.reftree_tax"""
         for node in self.reftree_tax.traverse("postorder"):
             if node.is_leaf():
                 # assume that seqs are always assigned to species level (7th rank, 0-based index = 6)           
@@ -250,13 +251,13 @@ class RefTreeBuilder:
                 self.bid_ranks_map[node.B] = parent.ranks
             elif self.cfg.verbose:
                 print "INFO: EPA branch label missing, mapping to taxon skipped (%s)" % node.name
-        
+    
     def write_branch_rank_map(self):
         with open(self.brmap_fname, "w") as fbrmap:    
             for node in self.reftree_tax.traverse("postorder"):
                 if not node.is_root() and hasattr(node, "B"):                
                     fbrmap.write(node.B + "\t" + ";".join(self.bid_ranks_map[node.B]) + "\n")
-        
+    
     def calc_node_heights(self):
         """Calculate node heights on the reference tree (used to define branch-length cutoff during classification step)
            Algorithm is as follows:
@@ -329,8 +330,7 @@ class RefTreeBuilder:
         
         print "Writing down the reference file...\n"
         jw.dump(self.cfg.refjson_fname)
-        
-        
+
     def cleanup(self):
         FileUtils.remove_if_exists(self.outgr_fname)
         FileUtils.remove_if_exists(self.reftree_mfu_fname)

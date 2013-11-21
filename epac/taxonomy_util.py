@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
-from epac.ete2 import Tree
+#from epac.ete2 import Tree
+from ete2 import Tree
 
 class Taxonomy:
     EMPTY_RANK = "-"
@@ -43,7 +44,21 @@ class GGTaxonomyFile(Taxonomy):
         self.tax_fname = tax_fname        
         self.prefix = prefix
         self.seq_ranks_map = {}
+        self.common_ranks = set([])
         self.load_taxonomy()
+
+    def get_common_ranks(self):
+        allranks = list(self.seq_ranks_map.items())
+        numitems = len(allranks)
+        if numitems > 0:
+            self.common_ranks = set(allranks[0][1])
+            for i in range(1, numitems):
+                curr_set = set(allranks[i][1])
+                inters = self.common_ranks & curr_set 
+                self.common_ranks = inters
+            return self.common_ranks
+        else:
+            return set([])
 
     def seq_count(self):
         return len(self.seq_ranks_map)
@@ -254,4 +269,6 @@ def extrac_sequences(fin_taxonomy, fin_db, fout):
   
 if __name__ == "__main__":
     #extrac_trainning_taxonomy(fin = "testdata/gg_clostridia_tax.txt", fout_train = "training_tax.txt", fout_test = "testing_tax.txt")
-    extrac_sequences(fin_taxonomy = "testing_tax.txt", fin_db = "test1_seq.fa", fout = "testing_seq.fa")
+    #extrac_sequences(fin_taxonomy = "testing_tax.txt", fin_db = "test1_seq.fa", fout = "testing_seq.fa")
+    gt = GGTaxonomyFile("/home/zhangje/GIT/EPA-classifier/example/training_tax.txt")
+    print gt.get_common_ranks()
