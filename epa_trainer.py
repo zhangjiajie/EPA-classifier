@@ -71,7 +71,7 @@ class RefTreeBuilder:
                         fout.write(fin.readline())
                     else:
                         fin.readline()    
-        
+    
     def export_ref_taxonomy(self):
         self.taxonomy_map = {}
         
@@ -167,7 +167,7 @@ class RefTreeBuilder:
         if self.reduced_refalign_seqs == None:
             print("FATAL ERROR: Invalid input file format in %s! (load_reduced_refalign)" % self.reduced_refalign_fname)
             sys.exit()
-            
+    
     # dummy EPA run to label the branches of the reference tree, which we need to build a mapping to tax ranks    
     def epa_branch_labeling(self):
         # create alignment with dummy query seq
@@ -177,7 +177,7 @@ class RefTreeBuilder:
         with open(self.lblalign_fname, "a") as fout:
             fout.write(">" + "DUMMY131313" + "\n")        
             fout.write("A"*seqlen + "\n")        
-	
+        
         epa_result = self.raxml_wrapper.run_epa(self.epalbl_job_name, self.lblalign_fname, self.reftree_bfu_fname, self.optmod_fname)
         self.reftree_lbl_str = epa_result.get_std_newick_tree()
         if self.raxml_wrapper.epa_result_exists(self.epalbl_job_name):        
@@ -206,6 +206,7 @@ class RefTreeBuilder:
             self.reftree_tax.write(outfile=self.reftree_lbl_fname, format=5)
 
     def label_reftree_with_ranks(self):
+        """labeling self.reftree_tax"""
         for node in self.reftree_tax.traverse("postorder"):
             if node.is_leaf():
                 # assume that seqs are always assigned to species level (7th rank, 0-based index = 6)           
@@ -250,13 +251,13 @@ class RefTreeBuilder:
                 self.bid_ranks_map[node.B] = parent.ranks
             elif self.cfg.verbose:
                 print "INFO: EPA branch label missing, mapping to taxon skipped (%s)" % node.name
-        
+    
     def write_branch_rank_map(self):
         with open(self.brmap_fname, "w") as fbrmap:    
             for node in self.reftree_tax.traverse("postorder"):
                 if not node.is_root() and hasattr(node, "B"):                
                     fbrmap.write(node.B + "\t" + ";".join(self.bid_ranks_map[node.B]) + "\n")
-        
+    
     def calc_node_heights(self):
         """Calculate node heights on the reference tree (used to define branch-length cutoff during classification step)
            Algorithm is as follows:
@@ -292,6 +293,31 @@ class RefTreeBuilder:
             del nh_map["DDD"]
             
         self.node_height_map = nh_map
+
+    def __get_all_rank_names(self, root):
+        rnames = set([])
+        for node in root.traverse("postorder"):
+            ranks = node.ranks
+            for rk in ranks:
+                rnames.add(rk)
+        return rnames
+
+    def mono_index(self):
+        """This method will calculate monophyly index by looking at the left and right hand side of the tree"""
+        children = self.reftree_tax.children
+        if len(children) == 1:
+            while len(children) == 1:
+                children = children[0].children 
+        if len(children) == 2:
+            left = children[0]
+            right =children[1]
+            lset = self.__get_all_rank_names(left)
+            rset = self.__get_all_rank_names(right)
+            iset = lset & rset
+            return iset
+        else:
+            print("Error: input tree not birfurcating")
+            return set([])
 
     def write_json(self):
         jw = RefJsonBuilder()
@@ -329,8 +355,7 @@ class RefTreeBuilder:
         
         print "Writing down the reference file...\n"
         jw.dump(self.cfg.refjson_fname)
-        
-        
+
     def cleanup(self):
         FileUtils.remove_if_exists(self.outgr_fname)
         FileUtils.remove_if_exists(self.reftree_mfu_fname)
@@ -363,6 +388,11 @@ class RefTreeBuilder:
         print "\n========> Building the mapping between EPA branch labels and ranks" + "...\n"
         self.build_branch_rank_map()
         self.calc_node_heights()
+        
+        print "\n=========> Checking branch labels ...\n"
+        print "shared rank names before trainning: " + repr(self.taxonomy.get_common_ranks())
+        print "shared rank names after  trainning: " + repr(self.mono_index())
+        
         print "\n=========> Saving the reference JSON file" + "...\n"
         self.write_json()
         print "\n***********  Done!  **********\n"
