@@ -294,6 +294,31 @@ class RefTreeBuilder:
             
         self.node_height_map = nh_map
 
+    def __get_all_rank_names(self, root):
+        rnames = set([])
+        for node in root.traverse("postorder"):
+            ranks = node.ranks
+            for rk in ranks:
+                rnames.add(rk)
+        return rnames
+
+    def mono_index(self):
+        """This method will calculate monophyly index by looking at the left and right hand side of the tree"""
+        children = self.reftree_tax.children
+        if len(children) == 1:
+            while len(children) == 1:
+                children = children[0].children 
+        if len(children) == 2:
+            left = children[0]
+            right =children[1]
+            lset = self.__get_all_rank_names(left)
+            rset = self.__get_all_rank_names(right)
+            iset = lset & rset
+            return iset
+        else:
+            print("Error: input tree not birfurcating")
+            return set([])
+
     def write_json(self):
         jw = RefJsonBuilder()
 
@@ -363,6 +388,11 @@ class RefTreeBuilder:
         print "\n========> Building the mapping between EPA branch labels and ranks" + "...\n"
         self.build_branch_rank_map()
         self.calc_node_heights()
+        
+        print "\n=========> Checking branch labels ...\n"
+        print "shared rank names before trainning: " + repr(self.taxonomy.get_common_ranks())
+        print "shared rank names after  trainning: " + repr(self.mono_index())
+        
         print "\n=========> Saving the reference JSON file" + "...\n"
         self.write_json()
         print "\n***********  Done!  **********\n"
