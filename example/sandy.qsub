@@ -1,0 +1,6 @@
+#!/bin/bash
+#
+#$ -cwd -V                              # Shift directories and export variables
+#$ -q sandy.q                        # Select the queue
+#$ -pe mvapich12 12                          # Set the parallel environment
+#$ -l h_rt=24:00:00                     # Request the time for the job

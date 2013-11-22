@@ -1,0 +1,17 @@
+HITS-specific info
+
+1. Running classifier on a cluster - the easy way:
+
+    On sandy bridge node (12 cores, 32GB RAM):
+
+    ./epa_classifier.py -r example/prokaryotes.json -q example/query.fa -c epac.cfg.sandy
+
+    On magny cours node (48 cores, 128GB RAM):
+
+    ./epa_classifier.py -r example/prokaryotes.json -q example/query.fa -c epac.cfg.magny
+
+    You can also like the trainer on the cluster in the similar way (-c epac.cfg.sandy).
+    
+    NOTE: since cluster jobs must be submitted from magny-login, you should setup the key-based
+          (i.e. password-free) login to this host. See HITS techwiki for details on how to do this.
+    

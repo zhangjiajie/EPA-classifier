@@ -1,0 +1,6 @@
+#!/bin/bash
+#
+#$ -cwd -V                              # Shift directories and export variables
+#$ -q standard.q                        # Select the queue
+#$ -pe mvapich48 48                          # Set the parallel environment
+#$ -l h_rt=24:00:00                     # Request the time for the job

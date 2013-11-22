@@ -13,7 +13,7 @@ explained in more detail.
     machine-specific parameters (e.g. RAxML-SSE3/RAxML-AVX, number of 
     threads etc) into a single file.
     
-    The sample configuration file - epac.cfg.sample - will give you an
+    The sample configuration file - epac.cfg.local - will give you an
     idea of available parameters and their meaning.
    
 2. Running RAxML on remote host
