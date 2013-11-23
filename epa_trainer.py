@@ -209,13 +209,12 @@ class RefTreeBuilder:
         """labeling self.reftree_tax"""
         for node in self.reftree_tax.traverse("postorder"):
             if node.is_leaf():
-                # assume that seqs are always assigned to species level (7th rank, 0-based index = 6)           
                 seq_ranks = self.taxonomy.get_seq_ranks(node.name)
                 rank_level = self.taxonomy.lowest_assigned_rank_level(node.name)
                 node.add_feature("rank_level", rank_level)
                 node.add_feature("ranks", seq_ranks)
                 node.name += "__" + seq_ranks[rank_level]
-     #           print node.B
+#                print node.name + " -- " + ";".join(node.ranks) + " -- " + str(node.rank_level)
             else:
                 if len(node.children) != 2:
                     print "FATAL ERROR: tree is not bifurcating!"
@@ -223,21 +222,21 @@ class RefTreeBuilder:
                 lchild = node.children[0]
                 rchild = node.children[1]
                 rank_level = min(lchild.rank_level, rchild.rank_level)
-    #            print str(rank_level) + "---" + lchild.ranks[rank_level] + " --- " + lchild.ranks[rank_level]
-                while rank_level >= 0 and (lchild.ranks[rank_level] != rchild.ranks[rank_level]):
+#                if hasattr(node, "B"):
+#                    print node.B + " ---- " + str(rank_level) + " --- " + lchild.ranks[rank_level] + " --- " + rchild.ranks[rank_level]
+                while rank_level >= 0 and lchild.ranks[rank_level] != rchild.ranks[rank_level]:
                     rank_level -= 1
-                if (rank_level >= 0):
-                    node.add_feature("rank_level", rank_level)
-                    node.name = lchild.ranks[rank_level]
-                    node_ranks = [Taxonomy.EMPTY_RANK] * 7
+                node.add_feature("rank_level", rank_level)
+                node_ranks = [Taxonomy.EMPTY_RANK] * 7
+                if rank_level >= 0:
                     node_ranks[0:rank_level+1] = lchild.ranks[0:rank_level+1]
-    #                print "Node rank: " + str(rank_level)
-    #                print node_ranks
-                    node.add_feature("ranks", node_ranks)
-    #                print node_ranks
+                    node.name = lchild.ranks[rank_level]
                 else:
-                    print "FATAL ERROR: sequences belong to different kingdoms! (or something went really wrong...)"
-                    sys.exit()
+                    node.name = "Undefined"
+#                    print ";".join(lchild.ranks) + " -- " + ";".join(rchild.ranks)
+                    if hasattr(node, "B") and self.cfg.verbose:
+                        print "INFO: no taxonomic annotation for branch %s (reason: children belong to different kingdoms)" % node.B
+                node.add_feature("ranks", node_ranks)
 
         if self.cfg.debug:
             #    t.show()
