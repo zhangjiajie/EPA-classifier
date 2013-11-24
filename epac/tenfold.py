@@ -56,6 +56,6 @@ def gentesting(ftaxa, fseq, fout, fold = 10):
         
 if __name__ == "__main__":
     if len(sys.argv) < 3: 
-        print(python tenfold.py taxonomy fasta fout)
+        print("python tenfold.py taxonomy fasta fout")
         sys.exit()
     gentesting(ftaxa = sys.argv[1], fseq = sys.argv[2], fout = sys.argv[3], fold = 10)
