@@ -3,15 +3,14 @@ import os
 import sys
 import random
 import math
+from ete2 import SeqGroup
 
 def gentesting(ftaxa, fseq, fout, fold = 10):
     ftax = open(ftaxa)
     lines = ftax.readlines()
     ftax.close()
     
-    fse = open(fseq)
-    slines = fse.readlines()
-    fse.close()
+    seqs = SeqGroup(fseq)
     
     idx = range(len(lines))
     random.seed(12345)
@@ -35,9 +34,12 @@ def gentesting(ftaxa, fseq, fout, fold = 10):
         f1 = open(fout + repr(i+1) + "testing.tax", "w")
         f2 = open(fout + repr(i+1) + "testing.fa", "w")
         for index in idxi:
-             f1.write(lines[index])
-             f2.write(slines[index*2])
-             f2.write(slines[index*2 + 1])
+             tax = lines[index]
+             seqid = tax.split()[0]
+             seq = seqs.get_seq(seqid)
+             f1.write(tax)
+             f2.write(">" + seqid + "\n")
+             f2.write(seq + "\n")
         f1.close()
         f2.close()
         
@@ -48,9 +50,12 @@ def gentesting(ftaxa, fseq, fout, fold = 10):
             if not i==j:
                 idxj = idx_list[j]
                 for index in idxj:
-                    f1.write(lines[index])
-                    f2.write(slines[index*2])
-                    f2.write(slines[index*2 + 1])
+                    tax = lines[index]
+                    seqid = tax.split()[0]
+                    seq = seqs.get_seq(seqid)
+                    f1.write(tax)
+                    f2.write(">" + seqid + "\n")
+                    f2.write(seq + "\n")
         f1.close()
         f2.close()
         
