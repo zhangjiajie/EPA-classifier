@@ -183,13 +183,14 @@ class EpaClassifier:
             else:
                 output2 = output2 + origin_taxa_name+ "\t\t\t?\n"
         
-        with open(self.noalign) as fnoa:
-            lines = fnoa.readlines()
-            for line in lines:
-                if self.cfg.verbose:
-                    print(line.strip())
-                if fout!=None:
-                    fo.write(line)
+        if os.path.exists(self.noalign):
+            with open(self.noalign) as fnoa:
+                lines = fnoa.readlines()
+                for line in lines:
+                    if self.cfg.verbose:
+                        print(line.strip())
+                    if fout!=None:
+                        fo.write(line)
         
         if self.cfg.verbose:
             print(output2) 
