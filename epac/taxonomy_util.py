@@ -136,13 +136,14 @@ class TaxTreeBuilder:
                 node.delete()
 
     def add_tree_node(self, tree, nodeId, ranks, rank_level):
-        if rank_level > 0:
+        if rank_level >= 0:
             parent_level = rank_level            
             while ranks[parent_level] == Taxonomy.EMPTY_RANK:
                 parent_level -= 1
             parentId = ranks[parent_level]
         else:
             parentId = "root"
+            parent_level = -1
 
         if (parentId in self.tree_nodes):
             parentNode = self.tree_nodes[parentId]
@@ -150,6 +151,7 @@ class TaxTreeBuilder:
             parentNode = self.add_tree_node(tree, parentId, ranks, parent_level-1)
             self.tree_nodes[parentId] = parentNode;
 
+#        print "Adding node: %s, parent: %s, parent_level: %d" % (nodeId, parentId, parent_level)
         newNode = parentNode.add_child()
         newNode.add_feature("name", nodeId)
         return newNode        
@@ -221,6 +223,10 @@ class TaxTreeBuilder:
 
         if self.config.verbose:
             print "Total nodes in resulting tree: ", added
+        
+        if self.config.debug:
+            reftax_fname = self.config.tmp_fname("%NAME%_mf_unpruned.tre")
+            t0.write(outfile=reftax_fname, format=8)
 
         self.prune_unifu_nodes(t0)
         return t0, seq_ids

@@ -113,6 +113,13 @@ class RefTreeBuilder:
             print "Outgroup for rooting was saved to: " + self.outgr_fname + ", outgroup size: " + str(outgr_size+1)
         
         # now we can safely unroot the tree and remove internal node labels to make it suitable for raxml
+#        if rt.children[0] != outgr and not rt.children[0].is_leaf():
+#            rt.children[0].delete()
+#        elif not rt.children[1].is_leaf():
+#            rt.children[1].delete()
+#        else:
+#            print "FATAL ERROR: Reference tree has only 2 taxa, it must contain at least 4!"
+#            sys.exit()
         rt.write(outfile=self.reftree_mfu_fname, format=9)
 
     # RAxML call to convert multifurcating tree to the strictly bifurcating one
@@ -191,15 +198,28 @@ class RefTreeBuilder:
     def restore_rooting(self):
         self.reftree_tax = Tree(self.reftree_lbl_str)
         outgr = self.reftree_outgroup
-        outgr_leafs = outgr.get_leaf_names()
+        outgr_leaves = outgr.get_leaf_names()
         # check if outgroup consists of a single node - ETE considers it to be root, not leaf
-        if not outgr_leafs:
-            outgr_leafs = [outgr.name]
-        if len(outgr_leafs) > 1:
-            outgr_root = self.reftree_tax.get_common_ancestor(outgr_leafs)
+        if not outgr_leaves:
+            outgr_root = self.reftree_tax&outgr.name
+        elif len(outgr_leaves) == 1:
+            outgr_root = self.reftree_tax&outgr_leaves[0]
         else:
-            outgr_root = self.reftree_tax&outgr_leafs[0]
-        self.reftree_tax.set_outgroup(outgr_root)
+            # Even unrooted tree is "implicitely" rooted in ETE representation.
+            # If this pseudo-rooting happens to be within the outgroup, it cause problems
+            # in the get_common_ancestor() step (since common_ancestor = "root")
+            # Workaround: explicitely root the tree outside from outgroup subtree
+            for node in self.reftree_tax.iter_leaves():
+                if not node.name in outgr_leaves:
+                    tmp_root = node.up
+                    self.reftree_tax.set_outgroup(tmp_root)
+                    break
+            
+            outgr_root = self.reftree_tax.get_common_ancestor(outgr_leaves)
+
+        # we could be so lucky that the RAxML tree is already correctly rooted :)
+        if outgr_root != self.reftree_tax:
+            self.reftree_tax.set_outgroup(outgr_root)
 
         if self.cfg.debug:
             #    t.show()
@@ -233,9 +253,10 @@ class RefTreeBuilder:
                     node.name = lchild.ranks[rank_level]
                 else:
                     node.name = "Undefined"
-#                    print ";".join(lchild.ranks) + " -- " + ";".join(rchild.ranks)
+#                    print ";".join(lchild.ranks) + " -- " + ";".join(rchild.ranks) + " node_ranks: " + ";".join(node_ranks)
                     if hasattr(node, "B") and self.cfg.verbose:
                         print "INFO: no taxonomic annotation for branch %s (reason: children belong to different kingdoms)" % node.B
+
                 node.add_feature("ranks", node_ranks)
 
         if self.cfg.debug:
@@ -248,6 +269,7 @@ class RefTreeBuilder:
             if not node.is_root() and hasattr(node, "B"):                
                 parent = node.up                
                 self.bid_ranks_map[node.B] = parent.ranks
+#                print "%s => %s" % (node.B, parent.ranks)
             elif self.cfg.verbose:
                 print "INFO: EPA branch label missing, mapping to taxon skipped (%s)" % node.name
     
