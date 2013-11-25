@@ -450,7 +450,7 @@ information needed for taxonomic placement of query sequences.""")
 def check_args(args):
     #check if taxonomy file exists
     if not os.path.isfile(args.taxonomy_fname):
-        print "ERROR: Taxonomy file not found: %s" % args.tax_fname
+        print "ERROR: Taxonomy file not found: %s" % args.taxonomy_fname
         sys.exit()
 
     #check if alignment file exists
