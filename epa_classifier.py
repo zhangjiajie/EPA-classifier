@@ -140,7 +140,7 @@ class EpaClassifier:
         self.refjson.get_raxml_readable_tree(reftree_fname)
         optmod_fname = self.cfg.tmp_fname("%NAME%.opt")
         self.refjson.get_binary_model(optmod_fname)
-        job_name = "epa_" + self.cfg.name
+        job_name = self.cfg.subst_name("epa_%NAME%")
 
         reduced_align_fname = raxml.reduce_alignment(self.epa_alignment)
         placements = raxml.run_epa(job_name, reduced_align_fname, reftree_fname, optmod_fname).get_placement()
@@ -183,13 +183,14 @@ class EpaClassifier:
             else:
                 output2 = output2 + origin_taxa_name+ "\t\t\t?\n"
         
-        with open(self.noalign) as fnoa:
-            lines = fnoa.readlines()
-            for line in lines:
-                if self.cfg.verbose:
-                    print(line.strip())
-                if fout!=None:
-                    fo.write(line)
+        if os.path.exists(self.noalign):
+            with open(self.noalign) as fnoa:
+                lines = fnoa.readlines()
+                for line in lines:
+                    if self.cfg.verbose:
+                        print(line.strip())
+                    if fout!=None:
+                        fo.write(line)
         
         if self.cfg.verbose:
             print(output2) 

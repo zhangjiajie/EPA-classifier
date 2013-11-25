@@ -38,7 +38,7 @@ class EpacConfig:
         if args.num_threads:
             self.num_threads = args.num_threads        
         self.check_raxml()    
-        self.name = datetime.datetime.now().strftime("%Y%m%d_%H%M%S") #str(time.time())
+        self.name = "%d" % (time.time()*1000) #datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         results_name = self.name + "_" + datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         self.results_dir = self.results_home + results_name + "/"
 
@@ -109,8 +109,13 @@ class EpacConfig:
         self.min_confidence = parser.getfloat("assignment", "min_confidence")
         return parser
 
+    def subst_name(self, in_str):
+        """Replace %NAME% macros with an actual EPAC run name. Used to 
+        generate unique run-specific identifiers (filenames, RAxML job names etc)"""
+        return in_str.replace("%NAME%", self.name)
+    
     def tmp_fname(self, fname):
-        return self.temp_dir + fname.replace("%NAME%", self.name)
+        return self.temp_dir + self.subst_name(fname)
     
 class EpacTrainerConfig(EpacConfig):
     

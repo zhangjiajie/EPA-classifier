@@ -42,10 +42,13 @@ class RaxmlWrapper:
     def make_raxml_wildcard(self, job_name):
         return self.make_raxml_fname("*", job_name)
 
-    def cleanup(self, job_name):
+    def cleanup(self, job_name, remove_jplace=False):
         raxml_out_mask = self.make_raxml_wildcard(job_name)
         for fl in glob.glob(raxml_out_mask):
             os.remove(fl)
+        if remove_jplace:
+            jplace_fname = self.make_raxml_fname("portableTree", job_name) + ".jplace"
+            FileUtils.remove_if_exists(jplace_fname)
 
     def reduce_alignment(self, align_fname, job_name="reduce"):
         reduced_fname = align_fname + ".reduced"
