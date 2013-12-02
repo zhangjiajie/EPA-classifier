@@ -205,8 +205,9 @@ class RefTreeBuilder:
             for node in self.reftree_tax.iter_leaves():
                 if not node.name in outgr_leaves:
                     tmp_root = node.up
-                    self.reftree_tax.set_outgroup(tmp_root)
-                    break
+                    if not self.reftree_tax == tmp_root:
+                        self.reftree_tax.set_outgroup(tmp_root)
+                        break
             
             outgr_root = self.reftree_tax.get_common_ancestor(outgr_leaves)
 
