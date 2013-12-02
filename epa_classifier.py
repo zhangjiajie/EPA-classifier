@@ -184,7 +184,7 @@ class EpaClassifier:
                 lines = fnoa.readlines()
                 for line in lines:
                     if self.cfg.verbose:
-                        print(line.strip())
+                        print(line.strip()[1:] + "\t\t\t?\n")
                     if fout!=None:
                         fo.write(line.strip()[1:] + "\t\t\t?\n")
         
