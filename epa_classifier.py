@@ -190,7 +190,7 @@ class EpaClassifier:
                     if self.cfg.verbose:
                         print(line.strip())
                     if fout!=None:
-                        fo.write(line)
+                        fo.write(line.strip()[1:] + "\t\t\t?\n")
         
         if self.cfg.verbose:
             print(output2) 
