@@ -19,9 +19,9 @@ class RefTreeBuilder:
 
     def __init__(self, config): 
         self.cfg = config
-        self.mfresolv_job_name = "mfresolv"
-        self.epalbl_job_name = "epalbl"
-        self.optmod_job_name = "optmod"
+        self.mfresolv_job_name = self.cfg.subst_name("mfresolv_%NAME%")
+        self.epalbl_job_name = self.cfg.subst_name("epalbl_%NAME%")
+        self.optmod_job_name = self.cfg.subst_name("optmod_%NAME%")
         self.raxml_wrapper = RaxmlWrapper(config)
         self.taxonomy = GGTaxonomyFile(config.taxonomy_fname, RefTreeBuilder.REF_SEQ_PREFIX)
         
@@ -113,13 +113,6 @@ class RefTreeBuilder:
             print "Outgroup for rooting was saved to: " + self.outgr_fname + ", outgroup size: " + str(outgr_size+1)
         
         # now we can safely unroot the tree and remove internal node labels to make it suitable for raxml
-#        if rt.children[0] != outgr and not rt.children[0].is_leaf():
-#            rt.children[0].delete()
-#        elif not rt.children[1].is_leaf():
-#            rt.children[1].delete()
-#        else:
-#            print "FATAL ERROR: Reference tree has only 2 taxa, it must contain at least 4!"
-#            sys.exit()
         rt.write(outfile=self.reftree_mfu_fname, format=9)
 
     # RAxML call to convert multifurcating tree to the strictly bifurcating one
@@ -189,7 +182,7 @@ class RefTreeBuilder:
         self.reftree_lbl_str = epa_result.get_std_newick_tree()
         if self.raxml_wrapper.epa_result_exists(self.epalbl_job_name):        
             if not self.cfg.debug:
-                self.raxml_wrapper.cleanup(self.epalbl_job_name)
+                self.raxml_wrapper.cleanup(self.epalbl_job_name, True)
         else:
             print "RAxML EPA run failed, please examine the log for details: %s" \
                     % self.raxml_wrapper.make_raxml_fname("output", self.epalbl_job_name)
@@ -450,7 +443,7 @@ information needed for taxonomic placement of query sequences.""")
 def check_args(args):
     #check if taxonomy file exists
     if not os.path.isfile(args.taxonomy_fname):
-        print "ERROR: Taxonomy file not found: %s" % args.tax_fname
+        print "ERROR: Taxonomy file not found: %s" % args.taxonomy_fname
         sys.exit()
 
     #check if alignment file exists
