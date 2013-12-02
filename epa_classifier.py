@@ -40,18 +40,14 @@ class EpaClassifier:
         self.noalign = config.tmp_fname("%NAME%.noalign")
         self.seqs = None
 
+
     def cleanup(self):
         FileUtils.remove_if_exists(self.tmp_refaln)
         FileUtils.remove_if_exists(self.epa_alignment)
         FileUtils.remove_if_exists(self.hmmprofile)
         FileUtils.remove_if_exists(self.tmpquery)
         FileUtils.remove_if_exists(self.noalign)
-#        reduced = glob.glob(self.tmppath + "/*.reduced")
-#        for f in reduced:
-#            FileUtils.remove_if_exists(f)
- #       reduced = glob.glob(self.tmppath + "/*.jplace")
- #       for f in reduced:
- #           self._remove(f)
+
 
     def align_to_refenence(self, noalign, minp = 0.9):
         self.refjson.get_hmm_profile(self.hmmprofile)

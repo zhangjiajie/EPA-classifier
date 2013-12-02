@@ -52,7 +52,7 @@ class EpacConfig:
         self.raxml_remote_call = False        
         self.run_on_cluster = False
         self.epa_load_optmod = True
-        self.epa_use_heuristic = False
+        self.epa_use_heuristic = True
         self.epa_heur_rate = 0.01
         self.min_confidence = 0.2
         self.num_threads = 2
