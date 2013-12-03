@@ -34,6 +34,10 @@ class RefTreeBuilder:
         self.reftree_tax_fname = self.cfg.tmp_fname("%NAME%_tax.tre")
         self.brmap_fname = self.cfg.tmp_fname("%NAME%_map.txt")
 
+    def prune_identical_seqs(self):
+        """Use RAxML to remove indentical sequences from alignment, since they could mix up the reference tree afterwards"""
+        self.pruned_align_fname = self.raxml_wrapper.reduce_alignment(self.refalign_fname)       
+
     def build_multif_tree(self):
         c = self.cfg
         tb = TaxTreeBuilder(c, self.taxonomy)
@@ -59,18 +63,22 @@ class RefTreeBuilder:
            1. Filter out sequences which are not part of the reference tree
            2. Add sequence name prefix (r_)"""
         self.refalign_fname = self.cfg.tmp_fname("%NAME%_matrix.afa")
+        take_seq = False
         with open(self.cfg.align_fname, "r") as fin:
             with open(self.refalign_fname, "w") as fout:
                 while True:
                     line = fin.readline()
                     if not line: 
                         break
-                    sid = RefTreeBuilder.REF_SEQ_PREFIX + line.strip()[1:]
-                    if sid in self.reftree_ids:
-                        fout.write(">" +  sid + "\n") 
-                        fout.write(fin.readline())
-                    else:
-                        fin.readline()    
+                    if line[0] == ">":
+                        sid = RefTreeBuilder.REF_SEQ_PREFIX + line.strip()[1:]
+                        if sid in self.reftree_ids:
+                            fout.write(">" +  sid + "\n")
+                            take_seq = True
+                        else:
+                            take_seq = False
+                    elif take_seq:
+                        fout.write(line)
     
     def export_ref_taxonomy(self):
         self.taxonomy_map = {}
