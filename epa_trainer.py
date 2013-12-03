@@ -103,10 +103,10 @@ class RefTreeBuilder:
 
         if len(rt.children) > 1:
             outgr = rt.children[0]    
-            outgr_size = len(outgr.get_descendants())
+            outgr_size = len(outgr.get_leaves())
             for child in rt.children:
                 if child != outgr:
-                    child_size = len(child.get_descendants())
+                    child_size = len(child.get_leaves())
                     if child_size < outgr_size:
                         outgr = child
                         outgr_size = child_size
@@ -118,7 +118,7 @@ class RefTreeBuilder:
         self.reftree_outgroup = outgr
         outgr.write(outfile=self.outgr_fname, format=9)
         if self.cfg.verbose:
-            print "Outgroup for rooting was saved to: " + self.outgr_fname + ", outgroup size: " + str(outgr_size+1)
+            print "Outgroup for rooting was saved to: " + self.outgr_fname + ", outgroup size: " + str(outgr_size)
         
         # now we can safely unroot the tree and remove internal node labels to make it suitable for raxml
         rt.write(outfile=self.reftree_mfu_fname, format=9)
