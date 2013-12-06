@@ -140,6 +140,8 @@ class RefTreeBuilder:
         self.raxml_wrapper.run(self.mfresolv_job_name, raxml_params)
         if self.raxml_wrapper.result_exists(self.mfresolv_job_name):        
             self.raxml_wrapper.copy_result_tree(self.mfresolv_job_name, self.reftree_bfu_fname)
+            self.raxml_wrapper.copy_optmod_params(self.mfresolv_job_name, self.optmod_fname)
+
             if not self.cfg.debug:
                 self.raxml_wrapper.cleanup(self.mfresolv_job_name)
         
@@ -148,17 +150,17 @@ class RefTreeBuilder:
                 self.cfg.raxml_model = orig_raxml_model
             
             # RAxML call to optimize model parameters and write them down to the binary model file
-            print "\nOptimizing model parameters under GTR+GAMMA: \n"
-            raxml_params = ["-f", "e", "-s", self.reduced_refalign_fname, "-t", self.reftree_bfu_fname]
-            self.raxml_wrapper.run(self.optmod_job_name, raxml_params)
-            if self.raxml_wrapper.result_exists(self.optmod_job_name):
-                self.raxml_wrapper.copy_optmod_params(self.optmod_job_name, self.optmod_fname)
-                if not self.cfg.debug:
-                    self.raxml_wrapper.cleanup(self.optmod_job_name)
-            else:
-                print "RAxML run failed (model optimization), please examine the log for details: %s" \
-                        % self.raxml_wrapper.make_raxml_fname("output", self.optmod_fname)
-                sys.exit()  
+#            print "\nOptimizing model parameters under GTR+GAMMA: \n"
+#            raxml_params = ["-f", "e", "-s", self.reduced_refalign_fname, "-t", self.reftree_bfu_fname]
+#            self.raxml_wrapper.run(self.optmod_job_name, raxml_params)
+#            if self.raxml_wrapper.result_exists(self.optmod_job_name):
+#                self.raxml_wrapper.copy_optmod_params(self.optmod_job_name, self.optmod_fname)
+#                if not self.cfg.debug:
+#                    self.raxml_wrapper.cleanup(self.optmod_job_name)
+#            else:
+#                print "RAxML run failed (model optimization), please examine the log for details: %s" \
+#                        % self.raxml_wrapper.make_raxml_fname("output", self.optmod_fname)
+#                sys.exit()  
         else:
             print "RAxML run failed (mutlifurcation resolution), please examine the log for details: %s" \
                     % self.raxml_wrapper.make_raxml_fname("output", self.mfresolv_job_name)
