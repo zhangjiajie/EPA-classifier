@@ -136,7 +136,7 @@ class RefTreeBuilder:
             orig_raxml_model = ""
 
         print "\nResolving multifurcation: \n"
-        raxml_params = ["-s", self.reduced_refalign_fname, "-g", self.reftree_mfu_fname]
+        raxml_params = ["-s", self.reduced_refalign_fname, "-g", self.reftree_mfu_fname, "-F"]
         self.raxml_wrapper.run(self.mfresolv_job_name, raxml_params)
         if self.raxml_wrapper.result_exists(self.mfresolv_job_name):        
 #            self.raxml_wrapper.copy_result_tree(self.mfresolv_job_name, self.reftree_bfu_fname)
@@ -145,7 +145,7 @@ class RefTreeBuilder:
             bfu_fname = self.raxml_wrapper.result_fname(self.mfresolv_job_name)
 
             # RAxML call to optimize model parameters and write them down to the binary model file
-            print "\nOptimizing model parameters under GTR+GAMMA: \n"
+            print "\nOptimizing model parameters: \n"
             raxml_params = ["-f", "e", "-s", self.reduced_refalign_fname, "-t", bfu_fname, "-H"]
             self.raxml_wrapper.run(self.optmod_job_name, raxml_params)
             if self.raxml_wrapper.result_exists(self.optmod_job_name):
@@ -363,11 +363,11 @@ class RefTreeBuilder:
 
         print "Building the HMMER profile...\n"
 
-        try:
-            hmm = hmmer(self.cfg, refalign_fasta)
-            fprofile = hmm.build_hmm_profile()
-            jw.set_hmm_profile(fprofile)
-        finally:
+        hmm = hmmer(self.cfg, refalign_fasta)
+        fprofile = hmm.build_hmm_profile()
+        jw.set_hmm_profile(fprofile)
+        
+        if not self.cfg.debug:
             FileUtils.remove_if_exists(refalign_fasta)
             FileUtils.remove_if_exists(fprofile)
  

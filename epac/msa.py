@@ -49,8 +49,8 @@ class hmmer:
     
     def build_hmm_profile(self, informat="afa"):
         #hmmbuild --informat afa refotu.hmm ref_outs_547.fas
-        call_str = [self.hmmbuildpath,"--informat", informat, self.refprofile, self.refalign]
-        if self.cfg.debug:
+        call_str = [self.hmmbuildpath, "--symfrac", "0.0", "--informat", informat, self.refprofile, self.refalign]
+        if self.cfg.verbose:
             print "\n" + ' '.join(call_str) + "\n"
         call(call_str) #, stdout=open(os.devnull, "w"), stderr=subprocess.STDOUT)
         return self.refprofile
@@ -58,7 +58,7 @@ class hmmer:
     def hmm_align(self):
         #hmmalign -o 454.stock refotu.hmm 454input.fna.min100.fasta
         call_str = [self.hmmalignpath,"-o", self.stockname, self.refprofile, self.query]
-        if self.cfg.debug:
+        if self.cfg.verbose:
             print "\n" + ' '.join(call_str) + "\n"
         call(call_str) #, stdout=open(os.devnull, "w"), stderr=subprocess.STDOUT)
         return self.stockname
