@@ -66,7 +66,7 @@ class RaxmlWrapper:
             raxml_params += ["-G", str(self.config.epa_heur_rate)]
         if self.config.epa_load_optmod and optmod_fname:
             if os.path.isfile(optmod_fname):
-                raxml_params += ["-R", optmod_fname]
+                raxml_params += ["-R", optmod_fname, "-H"]
             else:
                 print "WARNING: Binary model file not found: %s" % optmod_fname
                 print "WARNING: Model parameters will be estimated by RAxML"
@@ -135,8 +135,11 @@ class RaxmlWrapper:
         if not self.config.debug:
             FileUtils.remove_if_exists(script_fname)
 
+    def result_fname(self, job_name):
+        return self.make_raxml_fname("result", job_name)
+    
     def result_exists(self, job_name):
-        if os.path.isfile(self.make_raxml_fname("result", job_name)):
+        if os.path.isfile(self.result_fname(job_name)):
             return True
         else:
             return False
@@ -148,7 +151,7 @@ class RaxmlWrapper:
             return False
 
     def copy_result_tree(self, job_name, dst_fname):
-        src_fname = self.make_raxml_fname("result", job_name)
+        src_fname = self.result_fname(job_name)
         shutil.copy(src_fname, dst_fname)
 
     def copy_optmod_params(self, job_name, dst_fname):
