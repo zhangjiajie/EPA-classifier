@@ -60,8 +60,13 @@ class RaxmlWrapper:
         else:
             return align_fname
 
-    def run_epa(self, job_name, align_fname, reftree_fname, optmod_fname="", silent=True):
-        raxml_params = ["-f", "v", "-s", align_fname, "-t", reftree_fname]        
+    def run_epa(self, job_name, align_fname, reftree_fname, optmod_fname="", silent=True, leave_one_test=False):
+        raxml_params = ["-s", align_fname, "-t", reftree_fname]
+        if leave_one_test:
+            raxml_params += ["-f", "l"]
+        else:
+            raxml_params += ["-f", "v"]
+
         if self.config.epa_use_heuristic:
             raxml_params += ["-G", str(self.config.epa_heur_rate)]
         if self.config.epa_load_optmod and optmod_fname:
@@ -73,7 +78,11 @@ class RaxmlWrapper:
                 
         self.run(job_name, raxml_params, silent)
         
-        jp_fname = self.make_raxml_fname("portableTree", job_name) + ".jplace"
+        if leave_one_test:
+            stem = "leaveOneOutResults"
+        else:
+            stem = "portableTree"
+        jp_fname = self.make_raxml_fname(stem, job_name) + ".jplace"
         if os.path.isfile(jp_fname):
             jp = EpaJsonParser(jp_fname)
             return jp
