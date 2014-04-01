@@ -352,6 +352,7 @@ class RefTreeBuilder:
 
         jw.set_taxonomy(self.bid_ranks_map)
         jw.set_tree(self.reftree_lbl_str)
+        jw.set_outgroup(self.reftree_outgroup)
 
         seqs = self.reduced_refalign_seqs.get_entries()    
         jw.set_sequences(seqs)
@@ -404,6 +405,7 @@ class RefTreeBuilder:
         self.export_ref_taxonomy()
         print "\n===> Saving the outgroup for later re-rooting " + "...\n"
         self.save_rooting()
+        sys.exit()
         print "\n====> RAxML call: resolve multifurcation " + "...\n"
         self.resolve_multif()
         self.load_reduced_refalign()

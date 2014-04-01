@@ -135,10 +135,18 @@ class RefJsonParser:
         else:
             return tree_str
     
-    def get_reftree(self):
-        t = Tree(self.jdata["tree"], format=1)
-        return t
+    def get_reftree(self, fout_name = None):
+        tree_str = self.jdata["tree"]
+        if fout_name != None:
+            with open(fout_name, "w") as fout:
+                fout.write(tree_str)
+        else:
+            return Tree(tree_str, format=1)
     
+    def get_outgroup(self):
+        t = Tree(self.jdata["outgroup"], format=9)
+        return t
+
     def get_bid_tanomomy_map(self):
         return self.jdata["taxonomy"]
 
@@ -180,10 +188,13 @@ class RefJsonParser:
                 
 class RefJsonBuilder:
     """This class builds the EPA Classifier reference json file"""
-    def __init__(self):
-        self.jdata = {}
-        self.jdata["version"] = "1.0"
-        self.jdata["author"] = "Jiajie Zhang"
+    def __init__(self, old_json=None):
+        if old_json:
+            self.jdata = old_json.jdata
+        else:
+            self.jdata = {}
+            self.jdata["version"] = "1.0"
+            self.jdata["author"] = "Jiajie Zhang"
         
     def set_taxonomy(self, bid_ranks_map):
         self.jdata["taxonomy"] = bid_ranks_map
@@ -195,6 +206,9 @@ class RefJsonBuilder:
         self.jdata["tree"] = tr
         self.jdata["raxmltree"] = Tree(tr, format=1).write(format=5)
         
+    def set_outgroup(self, outgr):
+        self.jdata["outgroup"] = outgr.write(format=9)
+
     def set_sequences(self, seqs):    
         self.jdata["sequences"] = seqs
         
