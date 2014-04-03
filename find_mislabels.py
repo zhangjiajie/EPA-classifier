@@ -4,6 +4,7 @@ try:
     import os
     import time
     import glob
+    from operator import itemgetter
     from epac.ete2 import Tree, SeqGroup
     from epac.argparse import ArgumentParser
     from epac.config import EpacConfig
@@ -32,25 +33,21 @@ class LeaveOneTest:
         self.node_height = self.refjson.get_node_height()
         self.erlang = erlang()
         self.tmp_refaln = config.tmp_fname("%NAME%.refaln")
-        self.epa_alignment = config.tmp_fname("%NAME%.afa")
-        self.hmmprofile = config.tmp_fname("%NAME%.hmmprofile")
-        self.tmpquery = config.tmp_fname("%NAME%.tmpquery")
-        self.noalign = config.tmp_fname("%NAME%.noalign")
         self.reftree_lbl_fname = config.tmp_fname("%NAME%_lbl.tre")
         self.reftree_tax_fname = config.tmp_fname("%NAME%_tax.tre")
         self.seqs = None
+        self.TAXONOMY_RANKS_COUNT = 7
 
         self.output_fname = args.output_dir + "/" + args.output_name
         self.method = args.method
         self.minlw = args.min_lhw
         self.jplace_fname = args.jplace_fname
+        self.mislabels = []
+        self.mislabels_cnt = [0] * self.TAXONOMY_RANKS_COUNT
+
 
     def cleanup(self):
         FileUtils.remove_if_exists(self.tmp_refaln)
-        FileUtils.remove_if_exists(self.epa_alignment)
-        FileUtils.remove_if_exists(self.hmmprofile)
-        FileUtils.remove_if_exists(self.tmpquery)
-        FileUtils.remove_if_exists(self.noalign)
 
     def get_lowest_assigned_rank_level(self, ranks):
         rank_level = len(ranks)-1
@@ -206,48 +203,54 @@ class LeaveOneTest:
                 }[rank_level]
         
     def check_tax_labels(self, seq_name, ranks, lws):
-        rank_orig = self.origin_taxonomy[seq_name]
+        orig_ranks = self.origin_taxonomy[seq_name]
         mislabel_lvl = -1
-        for rank_lvl in range(7):
-            if ranks[rank_lvl] != Taxonomy.EMPTY_RANK and ranks[rank_lvl] != rank_orig[rank_lvl]:
+        for rank_lvl in range(self.TAXONOMY_RANKS_COUNT):
+            if ranks[rank_lvl] != Taxonomy.EMPTY_RANK and ranks[rank_lvl] != orig_ranks[rank_lvl]:
                 mislabel_lvl = rank_lvl
                 break
 
         if mislabel_lvl >= 0:
-            output = seq_name + "\n"
-            output += ";".join(rank_orig) + "\n"
-            output += ";".join(ranks) + "\n"
-            output += "\t".join(["%.3f" % conf for conf in lws]) + "\n"
-            output += "%s\t%s\t%s\t%.3f\n" % (self.rank_level_name(mislabel_lvl), rank_orig[mislabel_lvl], ranks[mislabel_lvl], lws[mislabel_lvl])
-            if self.cfg.verbose:
+            mis_rec = {}
+            mis_rec['name'] = seq_name
+            mis_rec['level'] = mislabel_lvl
+            mis_rec['inv_level'] = -1 * mislabel_lvl  # just for sorting
+            mis_rec['orig_ranks'] = orig_ranks
+            mis_rec['ranks'] = ranks
+            mis_rec['lws'] = lws
+            mis_rec['conf'] = lws[mislabel_lvl]
+            self.mislabels.append(mis_rec)
+
+            for i in range(mislabel_lvl, self.TAXONOMY_RANKS_COUNT):
+                self.mislabels_cnt[i] += 1
+
+    def mis_rec_to_string(self, mis_rec):
+        lvl = mis_rec['level']
+        output = mis_rec['name'] + "\t"
+        output += "%s\t%s\t%s\t%.3f\n" % (self.rank_level_name(lvl), 
+            mis_rec['orig_ranks'][lvl], mis_rec['ranks'][lvl], mis_rec['lws'][lvl])
+        output += ";".join(mis_rec['orig_ranks']) + "\n"
+        output += ";".join(mis_rec['ranks']) + "\n"
+        output += "\t".join(["%.3f" % conf for conf in mis_rec['lws']]) + "\n"
+        return output
+
+    def sort_mislabels(self):
+        self.mislabels = sorted(self.mislabels, key=itemgetter('inv_level', 'conf'), reverse=True)
+    
+    def write_mislabels(self):
+        with open("%s.mis" % self.output_fname, "w") as fo_all:
+            for mis_rec in self.mislabels:
+                output = self.mis_rec_to_string(mis_rec)            
+                fo_all.write(output + "\n")
+                if self.cfg.verbose:
+                    print(output) 
+
+        print "Mislabels counts by ranks:"        
+        with open("%s.stats" % self.output_fname, "w") as fo_stat:
+            for i in range(self.TAXONOMY_RANKS_COUNT):
+                output = "%s: %d" % (self.rank_level_name(i), self.mislabels_cnt[i])            
+                fo_stat.write(output + "\n")
                 print(output) 
-            self.fo_all.write(output + "\n")
-            if mislabel_lvl < 6:  # genus
-                self.fo_genus.write(output + "\n")
-            if mislabel_lvl < 5:  # family
-                self.fo_family.write(output + "\n")
-                orig_family = rank_orig[4]                
-                self.cnt_family[orig_family] = self.cnt_family.get(orig_family, 0) + 1
-            if mislabel_lvl < 4:  # order
-                self.fo_order.write(output + "\n")
-
-    def run_raxml_leave_test(self):
-        job_name = self.cfg.subst_name("epa_%NAME%")
-        if self.jplace_fname:
-            jp = EpaJsonParser(self.jplace_fname)
-        else:        
-            jp = self.raxml.run_epa(job_name, self.refalign_fname, self.reftree_fname, self.optmod_fname, leave_one_test=True)
-
-        placements = jp.get_placement()
-        seq_count = 0
-        for place in placements:
-#            print "Placement # %d" % (seq_count + 1)
-            seq_name = place["n"][0]
-            ranks, lws = self.classify_seq(seq_name, place)
-            self.check_tax_labels(seq_name, ranks, lws)
-            seq_count += 1
-
-        return seq_count    
 
     def write_sorted_map(self, fname, out_map):
         total = sum(out_map.itervalues())
@@ -370,6 +373,24 @@ class LeaveOneTest:
 
         return a_ranks, a_conf
 
+    def run_raxml_leave_test(self):
+        job_name = self.cfg.subst_name("epa_%NAME%")
+        if self.jplace_fname:
+            jp = EpaJsonParser(self.jplace_fname)
+        else:        
+            jp = self.raxml.run_epa(job_name, self.refalign_fname, self.reftree_fname, self.optmod_fname, leave_one_test=True)
+
+        placements = jp.get_placement()
+        seq_count = 0
+        for place in placements:
+#            print "Placement # %d" % (seq_count + 1)
+            seq_name = place["n"][0]
+            ranks, lws = self.classify_seq(seq_name, place)
+            self.check_tax_labels(seq_name, ranks, lws)
+            seq_count += 1
+
+        return seq_count    
+
     def run_test(self, raxml_mode = True):
         self.raxml = RaxmlWrapper(config)
         self.refalign_fname = self.refjson.get_alignment(fout = self.tmp_refaln)        
@@ -384,13 +405,8 @@ class LeaveOneTest:
 
         print "Total sequences: %d\n" % len(reftree.get_leaves())
 
-        self.fo_all = open("%s_all.mis" % self.output_fname, "w")
-        self.fo_genus = open("%s_genus.mis" % self.output_fname, "w")
-        self.fo_family = open("%s_family.mis" % self.output_fname, "w")
-        self.family_stats_fname = "%s_family.stats" % self.output_fname
-        self.fo_order = open("%s_order.mis" % self.output_fname, "w")
-
-        self.cnt_family = {}
+#        self.family_stats_fname = "%s_family.stats" % self.output_fname
+#        self.cnt_family = {}
         
         if raxml_mode:
             self.refjson.get_raxml_readable_tree(self.reftree_fname)
@@ -410,19 +426,15 @@ class LeaveOneTest:
     #            if seq_count > 30:            
     #                break
 
-        self.write_sorted_map(self.family_stats_fname, self.cnt_family)
+        self.sort_mislabels()
+        self.write_mislabels()
+        print "\nPercentage of mislabeled sequences: %.2f %%" % (float(self.mislabels_cnt[self.TAXONOMY_RANKS_COUNT-1]) / seq_count * 100)
 
-        self.fo_all.close()
-        self.fo_genus.close()
-        self.fo_family.close()
-        self.fo_order.close()
+#        self.write_sorted_map(self.family_stats_fname, self.cnt_family)
 
         if not self.cfg.debug:
             FileUtils.remove_if_exists(self.optmod_fname)
             FileUtils.remove_if_exists(self.refalign_fname)
-
-        print "\nSequences tested: %d" % seq_count
-
 
 def print_options():
     print("usage: python find_mislabels.py -r example/reference.json -t 0.5 -v")
