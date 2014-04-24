@@ -405,7 +405,6 @@ class RefTreeBuilder:
         self.export_ref_taxonomy()
         print "\n===> Saving the outgroup for later re-rooting " + "...\n"
         self.save_rooting()
-        sys.exit()
         print "\n====> RAxML call: resolve multifurcation " + "...\n"
         self.resolve_multif()
         self.load_reduced_refalign()
