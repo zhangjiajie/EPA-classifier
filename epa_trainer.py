@@ -203,6 +203,7 @@ class RefTreeBuilder:
 
     def restore_rooting(self):
         self.reftree_tax = Tree(self.reftree_lbl_str)
+        self.reftree_outgroup = Tree(self.outgr_fname)
         outgr = self.reftree_outgroup
         outgr_leaves = outgr.get_leaf_names()
         # check if outgroup consists of a single node - ETE considers it to be root, not leaf
@@ -446,6 +447,9 @@ information needed for taxonomic placement of query sequences.""")
             help="""Debug mode, intermediate files will not be cleaned up.""")
     parser.add_argument("-c", dest="config_fname", default=None,
             help="""Config file name.""")
+    parser.add_argument("-n", dest="output_name", default=None,
+            help="""Run name.""")
+
     
     if len(sys.argv) < 4:
         parser.print_help()

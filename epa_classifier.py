@@ -8,7 +8,7 @@ try:
     from epac.argparse import ArgumentParser
     from epac.config import EpacConfig
     from epac.raxml_util import RaxmlWrapper, FileUtils
-    from epac.json_util import RefJsonParser, RefJsonChecker
+    from epac.json_util import RefJsonParser, RefJsonChecker, EpaJsonParser
     from epac.msa import muscle, hmmer
     from epac.erlang import erlang
     from epac.taxonomy_util import Taxonomy
@@ -19,7 +19,7 @@ except ImportError, e:
 
 
 class EpaClassifier:
-    def __init__(self, config):
+    def __init__(self, config, args):
         self.cfg = config
         try:
             self.refjson = RefJsonParser(config.refjson_fname)
@@ -39,7 +39,7 @@ class EpaClassifier:
         self.tmpquery = config.tmp_fname("%NAME%.tmpquery")
         self.noalign = config.tmp_fname("%NAME%.noalign")
         self.seqs = None
-
+        self.jplace_fname = args.jplace_fname
 
     def cleanup(self):
         FileUtils.remove_if_exists(self.tmp_refaln)
@@ -77,6 +77,11 @@ class EpaClassifier:
             print("Invalid input file format!")
             print("The supported input formats are fasta and phylip")
             sys.exit()
+
+        # if we have .jplace file, no alignment step is needed
+        # but we still have to load FASTA file to get real seq names
+        if self.jplace_fname:
+            return
             
         self.seqs.write(format="fasta_internal", outfile=self.tmpquery)
         print("Checking if query sequences are aligned ...")
@@ -131,22 +136,28 @@ class EpaClassifier:
 
     def classify(self, query_fname, fout = None, method = "1", minlw = 0.0, pv = 0.02, minp = 0.9):
         self.checkinput(query_fname, minp)
-        raxml = RaxmlWrapper(config)
-        reftree_fname = self.cfg.tmp_fname("ref_%NAME%.tre")
-        self.refjson.get_raxml_readable_tree(reftree_fname)
-        optmod_fname = self.cfg.tmp_fname("%NAME%.opt")
-        self.refjson.get_binary_model(optmod_fname)
-        job_name = self.cfg.subst_name("epa_%NAME%")
 
-        reduced_align_fname = raxml.reduce_alignment(self.epa_alignment)
-        placements = raxml.run_epa(job_name, reduced_align_fname, reftree_fname, optmod_fname).get_placement()
+        if self.jplace_fname:
+            jp = EpaJsonParser(self.jplace_fname)
+        else:        
+            raxml = RaxmlWrapper(config)
+            reftree_fname = self.cfg.tmp_fname("ref_%NAME%.tre")
+            self.refjson.get_raxml_readable_tree(reftree_fname)
+            optmod_fname = self.cfg.tmp_fname("%NAME%.opt")
+            self.refjson.get_binary_model(optmod_fname)
+            job_name = self.cfg.subst_name("epa_%NAME%")
 
-        if not self.cfg.debug:
-            raxml.cleanup(job_name)
-            FileUtils.remove_if_exists(reduced_align_fname)
-            FileUtils.remove_if_exists(reftree_fname)
-            FileUtils.remove_if_exists(optmod_fname)
-            
+            reduced_align_fname = raxml.reduce_alignment(self.epa_alignment)
+            jp = raxml.run_epa(job_name, reduced_align_fname, reftree_fname, optmod_fname)
+
+            if not self.cfg.debug:
+                raxml.cleanup(job_name)
+                FileUtils.remove_if_exists(reduced_align_fname)
+                FileUtils.remove_if_exists(reftree_fname)
+                FileUtils.remove_if_exists(optmod_fname)
+        
+        placements = jp.get_placement()
+    
         if fout!=None:
             fo = open(fout, "w")
         
@@ -318,6 +329,7 @@ class EpaClassifier:
             lweight = edge[2]
             
             # accumulate weight for the current sequence                
+            lowest_rank = None
             ranks = self.bid_taxonomy_map[br_id]
             for i in range(len(ranks)):
                 rank = ranks[i]
@@ -328,9 +340,15 @@ class EpaClassifier:
                         rb[rank] = br_id
                 else:
                     break
+
+            if not lowest_rank:
+                continue
             
             rw_own[lowest_rank] = rw_own.get(lowest_rank, 0) + lweight
             rb[lowest_rank] = br_id
+
+        if len(rw_own) == 0:
+            return ([], [])
 
         # we assign the sequence to a rank, which has the max "own" weight AND 
         # whose "total" weight is greater than a confidence threshold
@@ -420,8 +438,10 @@ def parse_args():
                     an assignment to a specific rank. This value represents a confidence 
                     measure of the assignment, assignments below this value will be discarded. 
                     Default: 0 to output all possbile assignments.""")
-    parser.add_argument("-o", dest="output_fname", default="",
-            help="""Query name, will be used as a name of results folder (default: <reftree>_YYYYMMDD_HHMM)""")
+    parser.add_argument("-o", dest="output_dir", default=None,
+            help="""Directory for result files  (default: same as query file directory)""")
+    parser.add_argument("-n", dest="output_name", default=None,
+            help="""Run name, will be used to name result files.""")
     parser.add_argument("-p", dest="p_value", type=float, default=0.02,
             help="""P-value for Erlang test.  Default: 0.02""")
     parser.add_argument("-minalign", dest="minalign", type=float, default=0.9,
@@ -457,18 +477,24 @@ def check_args(args):
         print_options()
         sys.exit()
     
-    if not args.query_fname:
-        print("The query can not be empty!\n")
+    if args.jplace_fname:
+        if not os.path.exists(args.jplace_fname):
+            print("Portable tree file does not exist: %s" % args.jplace_fname)
+            sys.exit()
+    
+    if args.query_fname:
+        if not os.path.exists(args.query_fname):
+            print("Input query file does not exists: %s" % args.query_fname)
+            sys.exit()
+
+        if not args.output_dir or not args.output_name:
+            args.output_fname = args.query_fname + ".assignment.txt"
+        else:
+            args.output_fname = args.output_dir + "/" + args.output_name + ".assignment.txt"
+    else:
+        print("Query file must be specified!\n")
         print_options()
         sys.exit()
-    
-    if not os.path.exists(args.query_fname):
-        print("Input query file does not exists: %s" % args.query_fname)
-        print_options()
-        sys.exit()
-    
-    if args.output_fname == "":
-        args.output_fname = args.query_fname + ".assignment.txt"
     
     if args.min_lhw < 0 or args.min_lhw > 1.0:
          args.min_lhw = 0.0
@@ -503,7 +529,7 @@ if __name__ == "__main__":
     config = EpacConfig(args)
     print_run_info(config, args)
    
-    ec = EpaClassifier(config)
+    ec = EpaClassifier(config, args)
     ec.classify(query_fname = args.query_fname, fout = args.output_fname, method = args.method, minlw = args.min_lhw, pv = args.p_value, minp = args.minalign)
     if not config.debug:
         ec.cleanup()

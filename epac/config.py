@@ -38,7 +38,10 @@ class EpacConfig:
         if args.num_threads:
             self.num_threads = args.num_threads        
         self.check_raxml()    
-        self.name = "%d" % (time.time()*1000) #datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        if args.output_name:
+            self.name = args.output_name
+        else:
+            self.name = "%d" % (time.time()*1000) #datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         results_name = self.name + "_" + datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         self.results_dir = self.results_home + results_name + "/"
 
