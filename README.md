@@ -52,3 +52,22 @@ EPA-classifier
 (6) Version
 
     EPA-classifier is still under development.
+    
+    
+    
+    EPA_PTP.py (Broken now, I will fix it when I have time)This is a pipeline
+               that uses evolutionary placement algorithm (EPA) and PTP to 
+               count species number when reference data is available. For 
+               details of EPA, please read this paper: Performance, accuracy, 
+               and Web server for evolutionary placement of short sequence 
+               reads under maximum likelihood. Systematic biology, 60(3), 
+               291–302. The pipeline will first run USEARCH to remove the 
+               chimera sequences, then it will use EPA to place the query 
+               reads to optimal position on the reference tree inferred 
+               from the reference alignment. PTP will then be applied to 
+               the reads been placed on each branch, with a fixed speciation
+               rate inferred from the reference data.  
+               Similar analysis used in bacterial metagenomics studies are 
+               called OTU-picking. For discussions about OTU-picking and EPA_PTP 
+               species counting, please have a look at our paper. 
+               Type ./EPA_PTP.py for help and instructions.
