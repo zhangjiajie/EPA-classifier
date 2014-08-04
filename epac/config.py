@@ -50,7 +50,7 @@ class EpacConfig:
         self.hmmer_home = self.epac_home + "/epac/bin" + "/"
         self.raxml_home = self.epac_home + "/epac/bin" + "/"
         self.raxml_exec = "raxmlHPC-PTHREADS-SSE3"
-        self.raxml_model = "GTRGAMMA"
+        self.raxml_model = "GTRCAT"
         self.raxml_remote_host = ""
         self.raxml_remote_call = False        
         self.run_on_cluster = False
