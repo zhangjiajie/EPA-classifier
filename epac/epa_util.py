@@ -120,6 +120,29 @@ class raxml:
         os.remove(self.tmppath + "/" + "RAxML_result." + self.name)
 
 
+def epa_2_ptp(placements, min_lw = 0.5):
+    placemap = {}
+    """find how many edges are used for placement, and create a map to store """
+    for placement in placements:
+        edges = placement["p"]
+        curredge = edges[0][0]
+        lw = edges[0][2] 
+        if lw >= min_lw:
+            placemap[curredge] = placemap.get(curredge, [])
+
+    """group taxa name by placement branch"""
+    for placement in placements:
+        edges = placement["p"]
+        taxa_names = placement["n"]
+        curredge = edges[0][0]
+        lw = edges[0][2] 
+        if lw >= min_lw:
+            a = placemap[curredge] 
+            a.extend(taxa_names)
+            placemap[curredge]  = a
+
+    
+
 if __name__ == "__main__":
     if len(sys.argv) < 3: 
         print("usage: ./epa_util.py <multifurcating.tre> <alignment> <num_thread>")
