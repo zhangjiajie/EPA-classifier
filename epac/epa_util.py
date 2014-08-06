@@ -4,9 +4,11 @@ import os
 import json
 import operator
 import time
+import subprocess
 from epac.ete2 import SeqGroup, Tree
 from subprocess import call
-from json_util import jsonparser
+#from json_util import jsonparser
+from PTP_light.PTP import EPA_interface
 
 
 class epa:
@@ -91,6 +93,12 @@ class raxml:
             sys.exit() 
         self.name = str(time.time())
     
+    
+    def raxml(self, alignment, num_thread = "2"):
+        call([self.raxmlpath, "-m","GTRGAMMA","-s",alignment, "-n",self.name,"-p", "1234", "-T", num_thread, "-w", self.tmppath], stdout=open(os.devnull, "w"), stderr=subprocess.STDOUT)
+        return self.tmppath + "/" + "RAxML_bestTree." + self.name
+    
+    
     def resolve_mftree(self, mftree, alignment, num_thread = "2"):
         if os.path.exists(mftree):
             call([self.raxmlpath, "-m","GTRGAMMA","-s",alignment,"-g", mftree, "-n",self.name,"-p", "1234", "-T", num_thread, "-w", self.tmppath] ) #, stdout=open(os.devnull, "w"), stderr=subprocess.STDOUT)
@@ -120,7 +128,12 @@ class raxml:
         os.remove(self.tmppath + "/" + "RAxML_result." + self.name)
 
 
-def epa_2_ptp(placements, min_lw = 0.5):
+def epa_2_ptp(epa_jp, ref_jp, full_alignment, min_lw = 0.5):
+    placements = epa_jp.get_placement()
+    reftree = Tree(epa_jp.get_std_newick_tree())
+    allnodes = reftree.get_descendants()
+    species_list = []
+    
     placemap = {}
     """find how many edges are used for placement, and create a map to store """
     for placement in placements:
@@ -141,7 +154,61 @@ def epa_2_ptp(placements, min_lw = 0.5):
             a.extend(taxa_names)
             placemap[curredge]  = a
 
+    groups = placemap.items()
+    cnt_leaf = 0
+    cnt_inode = 0
     
+    """check each placement edge""" 
+    for i,item in enumerate(groups):
+        place_branch_name = item[0]
+        seqset = item[1]
+        
+        if len(seqset) < 4:
+            species_list.append(seqset)
+        else:
+            branch_alignment = SeqGroup()
+            """check if placed on leaf node and find the node being placed on"""
+            #is_on_leaf = False
+            #place_node = None
+            #for node in allnodes:
+            #    if str(node.B) == str(place_branch_name):
+            #        place_node = node
+            #        if node.is_leaf():
+            #            is_on_leaf = True 
+            #        break
+            
+            
+            #if is_on_leaf:
+            """find sister node"""
+            #    snode = place_node.get_sisters()[0]
+            #    if not snode.is_leaf():
+            #        snode = snode.get_closest_leaf()[0]
+            #    sister_name = snode.name
+            #    branch_alignment.set_seq("*sister_"+sister_name, full_alignment.get_seq(sister_name))
+            for taxa in seqset:
+                branch_alignment.set_seq(taxa, full_alignment.get_seq(taxa))
+            
+            species = build_tree_run_ptp(branch_alignment, ref_jp.get_rate())
+            print(species)
+            species_list.extend(species)
+            
+    return species_list
+
+
+
+def build_tree_run_ptp(alignment, sp_rate):
+    """return a list of sets of taxa names, and remove the neighoring taxa name"""
+    rml = raxml()
+    name = str(time.time()) + ".afa"
+    outname = rml.tmppath + "/" + name
+    alignment.write(outfile = outname)
+    outtree = rml.raxml(alignment = outname)
+    if os.path.exists(outtree):
+        return EPA_interface(tree = outtree, sp_rate = sp_rate, reroot = True, method = "H0", max_iters = 20000, min_brl = 0.0001, pvalue = 0.001)
+    else:
+        return []
+    
+
 
 if __name__ == "__main__":
     if len(sys.argv) < 3: 
