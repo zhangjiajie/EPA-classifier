@@ -40,6 +40,16 @@ class RefTreeBuilder:
 
     def build_multif_tree(self):
         c = self.cfg
+        
+        # make sure we don't have duplicate rank names
+        dups = self.taxonomy.check_for_duplicates()
+        if len(dups) > 0:
+          print "Duplicate rank names found:"
+          for dup in dups:
+            print "%s\t%s\n%s\t%s\n" % dup
+          print "Please fix (rename) them and run the pipeline again" 
+          sys.exit()
+
         tb = TaxTreeBuilder(c, self.taxonomy)
         (t, ids) = tb.build(c.reftree_min_rank, c.reftree_max_seqs_per_leaf, c.reftree_clades_to_include, c.reftree_clades_to_ignore)
         self.reftree_ids = frozenset(ids)
