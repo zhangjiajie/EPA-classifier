@@ -94,6 +94,7 @@ class RaxmlWrapper:
     def run(self, job_name, params, silent=True):
         self.cleanup(job_name)        
         params += ["-m", self.config.raxml_model, "-n", job_name]
+        params += ["--no-seq-check", "--no-bfgs"]
 
         if self.config.run_on_cluster:
             self.run_cluster(params)
