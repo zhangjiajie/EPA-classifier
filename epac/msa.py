@@ -129,7 +129,7 @@ class hmmer:
             
             #key is the sequence name which is the id
             numleft = count_non_gap(seqs[key])
-            numall = len(self.seqs.get_seqbyid(int(key)))
+            numall = len(self.seqs.get_seq(key))
             
             if numall > 0:
                 pleft = float(numleft) / float(numall)
@@ -148,7 +148,7 @@ class hmmer:
             
                 fout.write(seq + "\n")
             else:
-                foutdiscard.write(">" + self.seqs.get_name(int(key)) + "\n")
+                foutdiscard.write(">" + key + "\n")
         fout.close()
         return self.output
 
