@@ -161,6 +161,13 @@ class RefJsonParser:
 
         return fout
     
+    def get_ref_alignment(self):
+        entries = self.jdata["sequences"]
+        alignment = SeqGroup()
+        for entr in entries:
+            alignment.set_seq(entr[0], entr[1])
+        return alignment
+    
     def get_alignment_list(self):
         return self.jdata["sequences"]
     
