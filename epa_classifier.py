@@ -502,7 +502,7 @@ def parse_args():
     parser.add_argument("-c", dest="config_fname", default=None,
             help="Config file name.")
     parser.add_argument("--ptp", 
-            help = """delimit species with ptp""",
+            help = """Delimit species with ptp""",
             default = False,
             action="store_true")
     parser.add_argument("-x", dest="ignore_refalign", action="store_true",
@@ -577,10 +577,9 @@ def print_run_info(config, args):
 
 if __name__ == "__main__":
     if len(sys.argv) == 1: 
-        print_options()
-        sys.exit()
-
+        sys.argv.append("-h")
     args = parse_args()
+    
     check_args(args)
     config = EpacConfig(args)
     print_run_info(config, args)
