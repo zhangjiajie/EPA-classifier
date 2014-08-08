@@ -12,6 +12,7 @@ try:
     from epac.msa import muscle, hmmer
     from epac.erlang import erlang
     from epac.taxonomy_util import Taxonomy
+    from epac.epa_util import epa_2_ptp
 except ImportError, e:
     print("Some packages are missing, please re-downloand EPA-classifier")
     print e
@@ -34,6 +35,7 @@ class EpaClassifier:
         self.node_height = self.refjson.get_node_height()
         self.erlang = erlang()
         self.tmp_refaln = config.tmp_fname("%NAME%.refaln")
+        #here is the final alignment file for running EPA
         self.epa_alignment = config.tmp_fname("%NAME%.afa")
         self.hmmprofile = config.tmp_fname("%NAME%.hmmprofile")
         self.tmpquery = config.tmp_fname("%NAME%.tmpquery")
@@ -134,7 +136,7 @@ class EpaClassifier:
             return ss[:-1] + "\t" + css[:-1]
 
 
-    def classify(self, query_fname, fout = None, method = "1", minlw = 0.0, pv = 0.02, minp = 0.9):
+    def classify(self, query_fname, fout = None, method = "1", minlw = 0.0, pv = 0.02, minp = 0.9, ptp = False):
         self.checkinput(query_fname, minp)
 
         if self.jplace_fname:
@@ -146,20 +148,14 @@ class EpaClassifier:
             optmod_fname = self.cfg.tmp_fname("%NAME%.opt")
             self.refjson.get_binary_model(optmod_fname)
             job_name = self.cfg.subst_name("epa_%NAME%")
-
             reduced_align_fname = raxml.reduce_alignment(self.epa_alignment)
             jp = raxml.run_epa(job_name, reduced_align_fname, reftree_fname, optmod_fname)
-
-            if not self.cfg.debug:
-                raxml.cleanup(job_name)
-                FileUtils.remove_if_exists(reduced_align_fname)
-                FileUtils.remove_if_exists(reftree_fname)
-                FileUtils.remove_if_exists(optmod_fname)
         
         placements = jp.get_placement()
-    
+        
         if fout!=None:
             fo = open(fout, "w")
+            fo2 = open(fout+".species", "w")
         
         output2 = ""
         for place in placements:
@@ -176,6 +172,7 @@ class EpaClassifier:
                 
                 isnovo = self.novelty_check(place_edge = str(edges[0][0]), ranks =ranks, lws = lws, minlw = minlw)
                 rankout = self.print_ranks(ranks, lws, minlw)
+                
                 if rankout == None:
                     output2 = output2 + origin_taxa_name+ "\t\t\t?\n"
                 else:
@@ -190,6 +187,25 @@ class EpaClassifier:
             else:
                 output2 = output2 + origin_taxa_name+ "\t\t\t?\n"
         
+        #############################################
+        #
+        # EPA-PTP species delimitation
+        #
+        #############################################
+        if ptp:
+            full_aln = SeqGroup(self.epa_alignment)
+            species_list = epa_2_ptp(epa_jp = jp, ref_jp = self.refjson, full_alignment = full_aln, min_lw = 0.5, debug = self.cfg.debug)
+            
+            for species in species_list:
+                translated_species = []
+                for taxa in species:
+                    origin_taxa_name = self.seqs.get_name(int(taxa))
+                    translated_species.append(origin_taxa_name)
+                s = ",".join(translated_species)
+                fo2.write(s + "\n")
+        #############################################
+        
+        
         if os.path.exists(self.noalign):
             with open(self.noalign) as fnoa:
                 lines = fnoa.readlines()
@@ -200,12 +216,21 @@ class EpaClassifier:
                         fo.write(line.strip()[1:] + "\t\t\t?\n")
         
         if self.cfg.verbose:
-            print(output2) 
+            print(output2)
+        
         if fout!=None:
             fo.write(output2)
         
         if fout!=None:
             fo.close()
+            fo2.close()
+        
+        if not self.jplace_fname:
+            if not self.cfg.debug:
+                raxml.cleanup(job_name)
+                FileUtils.remove_if_exists(reduced_align_fname)
+                FileUtils.remove_if_exists(reftree_fname)
+                FileUtils.remove_if_exists(optmod_fname)
 
 
     def erlang_filter(self, edges, p = 0.02):
@@ -398,6 +423,7 @@ def print_options():
     print("                                   2: Max likelihood placement\n ")
     print("    -T numthread                   Specify the number of CPUs.\n")
     print("    -v                             Print the results on screen.\n")
+    print("    --ptp                          Delimit species with PTP.\n")
 
 
 def require_muscle():
@@ -462,6 +488,10 @@ def parse_args():
             help="""Do not call RAxML EPA, use existing .jplace file as input instead.""")
     parser.add_argument("-c", dest="config_fname", default=None,
             help="Config file name.")
+    parser.add_argument("--ptp", 
+            help = """delimit species with ptp""",
+            default = False,
+            action="store_true")
     args = parser.parse_args()
     return args
 
@@ -504,7 +534,8 @@ def check_args(args):
     
     if not (args.method == "1" or args.method == "2"):
         args.method == "1"
-        
+
+
 def print_run_info(config, args):
     print("EPA-classifier running with the following parameters:")
     print(" Reference:......................%s" % args.ref_fname)
@@ -530,7 +561,7 @@ if __name__ == "__main__":
     print_run_info(config, args)
    
     ec = EpaClassifier(config, args)
-    ec.classify(query_fname = args.query_fname, fout = args.output_fname, method = args.method, minlw = args.min_lhw, pv = args.p_value, minp = args.minalign)
+    ec.classify(query_fname = args.query_fname, fout = args.output_fname, method = args.method, minlw = args.min_lhw, pv = args.p_value, minp = args.minalign, ptp = args.ptp)
     if not config.debug:
         ec.cleanup()
 
