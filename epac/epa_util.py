@@ -9,6 +9,7 @@ from epac.ete2 import SeqGroup, Tree
 from subprocess import call
 #from json_util import jsonparser
 from PTP_light.PTP import EPA_interface
+from raxml_util import FileUtils
 
 
 class epa:
@@ -80,6 +81,7 @@ class raxml:
         self.basepath = os.path.dirname(os.path.abspath(__file__))
         self.raxmlpath = self.basepath + "/bin/" + raxmlbin
         self.tmppath = self.basepath + "/tmp"
+        self.alignment = ""
         if not os.path.exists(self.raxmlpath):
             print("The pipeline uses RAxML to infer phylogenetic trees,")
             print("please download the latest source code from: ")
@@ -96,6 +98,7 @@ class raxml:
     
     def raxml(self, alignment, num_thread = "2"):
         call([self.raxmlpath, "-m","GTRGAMMA","-s",alignment, "-n",self.name,"-p", "1234", "-T", num_thread, "-w", self.tmppath], stdout=open(os.devnull, "w"), stderr=subprocess.STDOUT)
+        self.alignment = alignment
         return self.tmppath + "/" + "RAxML_bestTree." + self.name
     
     
@@ -123,12 +126,18 @@ class raxml:
 
         
     def clean(self):
-        os.remove(self.tmppath + "/" + "RAxML_info." + self.name)
-        os.remove(self.tmppath + "/" + "RAxML_log." + self.name)
-        os.remove(self.tmppath + "/" + "RAxML_result." + self.name)
+        FileUtils.remove_if_exists(self.tmppath + "/" + "RAxML_info." + self.name)
+        #print(self.tmppath + "/" + "RAxML_info." + self.name)
+        FileUtils.remove_if_exists(self.tmppath + "/" + "RAxML_log." + self.name)
+        FileUtils.remove_if_exists(self.tmppath + "/" + "RAxML_result." + self.name)
+        FileUtils.remove_if_exists(self.tmppath + "/" + "RAxML_bestTree." + self.name)
+        FileUtils.remove_if_exists(self.tmppath + "/" + "RAxML_parsimonyTree." + self.name)
+        FileUtils.remove_if_exists(self.alignment)
+        FileUtils.remove_if_exists(self.alignment+".reduced")
+        
 
 
-def epa_2_ptp(epa_jp, ref_jp, full_alignment, min_lw = 0.5):
+def epa_2_ptp(epa_jp, ref_jp, full_alignment, min_lw = 0.5, debug = False):
     placements = epa_jp.get_placement()
     reftree = Tree(epa_jp.get_std_newick_tree())
     allnodes = reftree.get_descendants()
@@ -162,36 +171,14 @@ def epa_2_ptp(epa_jp, ref_jp, full_alignment, min_lw = 0.5):
     for i,item in enumerate(groups):
         place_branch_name = item[0]
         seqset = item[1]
-        
         if len(seqset) < 4:
             species_list.append(seqset)
         else:
             branch_alignment = SeqGroup()
-            """check if placed on leaf node and find the node being placed on"""
-            #is_on_leaf = False
-            #place_node = None
-            #for node in allnodes:
-            #    if str(node.B) == str(place_branch_name):
-            #        place_node = node
-            #        if node.is_leaf():
-            #            is_on_leaf = True 
-            #        break
-            
-            
-            #if is_on_leaf:
-            """find sister node"""
-            #    snode = place_node.get_sisters()[0]
-            #    if not snode.is_leaf():
-            #        snode = snode.get_closest_leaf()[0]
-            #    sister_name = snode.name
-            #    branch_alignment.set_seq("*sister_"+sister_name, full_alignment.get_seq(sister_name))
             for taxa in seqset:
                 branch_alignment.set_seq(taxa, full_alignment.get_seq(taxa))
-            
             species = build_tree_run_ptp(branch_alignment, ref_jp.get_rate())
-            print(species)
             species_list.extend(species)
-            
     return species_list
 
 
@@ -202,14 +189,19 @@ def build_tree_run_ptp(alignment, sp_rate):
     name = str(time.time()) + ".afa"
     outname = rml.tmppath + "/" + name
     alignment.write(outfile = outname)
+    all_taxa = []
+    for seq in alignment:
+        all_taxa.append(seq[0])
+        
     outtree = rml.raxml(alignment = outname)
     if os.path.exists(outtree):
-        return EPA_interface(tree = outtree, sp_rate = sp_rate, reroot = True, method = "H0", max_iters = 20000, min_brl = 0.0001, pvalue = 0.001)
+        slist = EPA_interface(tree = outtree, sp_rate = sp_rate, reroot = True, method = "H0", max_iters = 20000, min_brl = 0.0001, pvalue = 0.001)
+        rml.clean()
+        return slist
     else:
-        return []
+        rml.clean()
+        return [all_taxa]
     
-
-
 if __name__ == "__main__":
     if len(sys.argv) < 3: 
         print("usage: ./epa_util.py <multifurcating.tre> <alignment> <num_thread>")

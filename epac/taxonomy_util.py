@@ -101,6 +101,17 @@ class GGTaxonomyFile(Taxonomy):
     def map(self):
         return self.seq_ranks_map
 
+    def make_binomial_name(self, ranks):
+        if ranks[6] != Taxonomy.EMPTY_RANK:
+            if ranks[5][:3] == self.rank_placeholders[5]:
+                genus_name = ranks[5][3:]
+            else:
+                genus_name = ranks[5]
+            if ranks[6][:3] == self.rank_placeholders[6]:
+                ranks[6] = ranks[6][:3] + genus_name + "_" + ranks[6][3:]
+            else:
+                ranks[6] = genus_name + "_" + sp_name
+
     def load_taxonomy(self):
         print "Loading the taxonomy file..."
         fin = open(self.tax_fname)
@@ -119,9 +130,27 @@ class GGTaxonomyFile(Taxonomy):
             if len(ranks) < 7:
                 ranks += [Taxonomy.EMPTY_RANK] * (7 - len(ranks))
                 print "WARNING: sequence " + sid + " has incomplete taxonomic annotation. Missing ranks were considered empty (%s)" % Taxonomy.EMPTY_RANK 
+
+            self.make_binomial_name(ranks);
+
             self.seq_ranks_map[sid] = ranks     
 
         fin.close()
+
+    def check_for_duplicates(self):
+        parent_map = {}
+        dups = []
+        for sid, ranks in self.seq_ranks_map.iteritems():
+            for i in range(1, len(ranks)):
+                parent = ranks[i-1]
+                if not ranks[i] in parent_map:
+                    parent_map[ranks[i]] = sid
+                else:
+                    old_sid = parent_map[ranks[i]]
+                    if self.get_seq_ranks(old_sid)[i-1] != parent:
+                       dups.append((sid, self.lineage_str(sid), old_sid, self.lineage_str(old_sid)))
+
+        return dups
         
 class TaxTreeBuilder:
     def __init__(self, config, taxonomy):

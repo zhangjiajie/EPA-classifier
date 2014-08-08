@@ -20,6 +20,9 @@ except ImportError, e:
 
 
 class EpaClassifier:
+    REF_PREFIX = "r_";
+    QUERY_PREFIX = "q_";
+
     def __init__(self, config, args):
         self.cfg = config
         try:
@@ -42,6 +45,7 @@ class EpaClassifier:
         self.noalign = config.tmp_fname("%NAME%.noalign")
         self.seqs = None
         self.jplace_fname = args.jplace_fname
+        self.ignore_refalign = args.ignore_refalign
 
     def cleanup(self):
         FileUtils.remove_if_exists(self.tmp_refaln)
@@ -64,7 +68,7 @@ class EpaClassifier:
             for seq in refaln:
                 fout.write(">" + seq[0] + "\n" + seq[1] + "\n")
             for name, seq, comment, sid in query_seqs.iter_entries():
-                fout.write(">" + str(sid) + "\n" + seq + "\n")
+                fout.write(">" + name + "\n" + seq + "\n")
 
 
     def checkinput(self, query_fname, minp = 0.9):
@@ -80,12 +84,22 @@ class EpaClassifier:
             print("The supported input formats are fasta and phylip")
             sys.exit()
 
-        # if we have .jplace file, no alignment step is needed
-        # but we still have to load FASTA file to get real seq names
-        if self.jplace_fname:
+        if self.ignore_refalign:
+            print("Assuming query file contains reference sequences, skipping the alignment step...")
+            with open(self.epa_alignment, "w") as fout:
+                for name, seq, comment, sid in self.seqs.iter_entries():
+                    ref_name = self.REF_PREFIX + name
+                    if ref_name in self.refjson.get_sequences_names():
+                        seq_name = ref_name
+                    else:
+                        seq_name = self.QUERY_PREFIX + name
+                    fout.write(">" + seq_name + "\n" + seq + "\n")
             return
             
-        self.seqs.write(format="fasta_internal", outfile=self.tmpquery)
+        # add query seq name prefix to avoid confusion between reference and query sequences
+        self.seqs.add_name_prefix(self.QUERY_PREFIX)
+        
+        self.seqs.write(format="fasta", outfile=self.tmpquery)
         print("Checking if query sequences are aligned ...")
         entries = self.seqs.get_entries()
         seql = len(entries[0][1])
@@ -138,10 +152,10 @@ class EpaClassifier:
 
     def classify(self, query_fname, fout = None, method = "1", minlw = 0.0, pv = 0.02, minp = 0.9, ptp = False):
         self.checkinput(query_fname, minp)
-
         if self.jplace_fname:
             jp = EpaJsonParser(self.jplace_fname)
         else:        
+            self.checkinput(query_fname, minp)
             raxml = RaxmlWrapper(config)
             reftree_fname = self.cfg.tmp_fname("ref_%NAME%.tre")
             self.refjson.get_raxml_readable_tree(reftree_fname)
@@ -161,7 +175,7 @@ class EpaClassifier:
         for place in placements:
             output = None
             taxa_name = place["n"][0]
-            origin_taxa_name = self.seqs.get_name(int(taxa_name))
+            origin_taxa_name = taxa_name.lstrip(self.QUERY_PREFIX)
             edges = place["p"]
             edges = self.erlang_filter(edges, p = pv)
             if len(edges) > 0:
@@ -199,12 +213,11 @@ class EpaClassifier:
             for species in species_list:
                 translated_species = []
                 for taxa in species:
-                    origin_taxa_name = self.seqs.get_name(int(taxa))
+                    origin_taxa_name = taxa.lstrip(self.QUERY_PREFIX)
                     translated_species.append(origin_taxa_name)
                 s = ",".join(translated_species)
                 fo2.write(s + "\n")
         #############################################
-        
         
         if os.path.exists(self.noalign):
             with open(self.noalign) as fnoa:
@@ -492,6 +505,8 @@ def parse_args():
             help = """delimit species with ptp""",
             default = False,
             action="store_true")
+    parser.add_argument("-x", dest="ignore_refalign", action="store_true",
+            help="Query file contains complete alignment (query+reference), so use it and ignore reference alignment from .json file.")
     args = parser.parse_args()
     return args
 
@@ -508,24 +523,34 @@ def check_args(args):
         sys.exit()
     
     if args.jplace_fname:
-        if not os.path.exists(args.jplace_fname):
+        if os.path.exists(args.jplace_fname):
+            input_fname = args.jplace_fname 
+        else: 
             print("Portable tree file does not exist: %s" % args.jplace_fname)
             sys.exit()
-    
-    if args.query_fname:
-        if not os.path.exists(args.query_fname):
+    elif args.query_fname:
+        if os.path.exists(args.query_fname):
+            input_fname = args.query_fname 
+        else:
             print("Input query file does not exists: %s" % args.query_fname)
             sys.exit()
-
-        if not args.output_dir or not args.output_name:
-            args.output_fname = args.query_fname + ".assignment.txt"
-        else:
-            args.output_fname = args.output_dir + "/" + args.output_name + ".assignment.txt"
     else:
-        print("Query file must be specified!\n")
+        print("Either query file or .jplace file must be specified!\n")
         print_options()
         sys.exit()
     
+    query_dir, query_fname = os.path.split(os.path.abspath(input_fname))
+    if args.output_dir:
+        out_dir = args.output_dir
+    else:
+        out_dir = query_dir
+
+    if args.output_name:
+        out_fname = args.output_name + ".assignment.txt"
+        args.output_fname = out_dir + "/" + out_fname
+    else:
+        args.output_fname = args.query_fname + ".assignment.txt"
+
     if args.min_lhw < 0 or args.min_lhw > 1.0:
          args.min_lhw = 0.0
     

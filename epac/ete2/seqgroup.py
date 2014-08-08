@@ -174,3 +174,10 @@ class SeqGroup(object):
         self.id2comment[seqid] = comments
         self.id2seq[seqid] = seq
 
+    def add_name_prefix(self, prefix):
+        for sid in self.id2name.iterkeys():
+            old_name = self.id2name[sid]
+            new_name = prefix + old_name
+            self.name2id[new_name] = self.name2id.pop(old_name)
+            self.id2name[sid] = new_name
+
