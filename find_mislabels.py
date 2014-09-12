@@ -12,7 +12,7 @@ try:
     from epac.json_util import RefJsonParser, RefJsonChecker, EpaJsonParser
     from epac.msa import muscle, hmmer
     from epac.erlang import erlang
-    from epac.taxonomy_util import Taxonomy
+    from epac.taxonomy_util import Taxonomy,GGTaxonomyFile
 except ImportError, e:
     print("Some packages are missing, please re-downloand EPA-classifier")
     print e
@@ -181,7 +181,7 @@ class LeaveOneTest:
 #                print "INFO: EPA branch label missing, mapping to taxon skipped (%s)" % node.name
 
     
-    def classify_seq(self, seq_name, placement):
+    def classify_seq(self, placement):
         edges = placement["p"]
         if len(edges) > 0:
             if self.method == "1":
@@ -212,11 +212,11 @@ class LeaveOneTest:
 
         if mislabel_lvl >= 0:
             mis_rec = {}
-            mis_rec['name'] = seq_name
+            mis_rec['name'] = seq_name.lstrip(EpacConfig.REF_SEQ_PREFIX)
             mis_rec['level'] = mislabel_lvl
             mis_rec['inv_level'] = -1 * mislabel_lvl  # just for sorting
-            mis_rec['orig_ranks'] = orig_ranks
-            mis_rec['ranks'] = ranks
+            mis_rec['orig_ranks'] = GGTaxonomyFile.strip_prefix(orig_ranks)
+            mis_rec['ranks'] = GGTaxonomyFile.strip_prefix(ranks)
             mis_rec['lws'] = lws
             mis_rec['conf'] = lws[mislabel_lvl]
             self.mislabels.append(mis_rec)
@@ -224,7 +224,7 @@ class LeaveOneTest:
             for i in range(mislabel_lvl, self.TAXONOMY_RANKS_COUNT):
                 self.mislabels_cnt[i] += 1
 
-    def mis_rec_to_string(self, mis_rec):
+    def mis_rec_to_string_old(self, mis_rec):
         lvl = mis_rec['level']
         output = mis_rec['name'] + "\t"
         output += "%s\t%s\t%s\t%.3f\n" % (self.rank_level_name(lvl), 
@@ -234,11 +234,23 @@ class LeaveOneTest:
         output += "\t".join(["%.3f" % conf for conf in mis_rec['lws']]) + "\n"
         return output
 
+    def mis_rec_to_string(self, mis_rec):
+        lvl = mis_rec['level']
+        output = mis_rec['name'] + "\t"
+        output += "%s\t%s\t%s\t%.3f\t" % (self.rank_level_name(lvl), 
+            mis_rec['orig_ranks'][lvl], mis_rec['ranks'][lvl], mis_rec['lws'][lvl])
+        output += Taxonomy.lineage_str(mis_rec['orig_ranks']) + "\t"
+        output += Taxonomy.lineage_str(mis_rec['ranks']) + "\t"
+        output += ";".join(["%.3f" % conf for conf in mis_rec['lws']])
+        return output
+
     def sort_mislabels(self):
         self.mislabels = sorted(self.mislabels, key=itemgetter('inv_level', 'conf'), reverse=True)
     
     def write_mislabels(self):
         with open("%s.mis" % self.output_fname, "w") as fo_all:
+	    fields = ["SeqID", "MislabeledRank", "OriginalLabel", "ProposedLabel", "Confidence", "OriginalTaxonomyPath", "ProposedTaxonomyPath", "PerRankConfidence"]
+	    fo_all.write(";" + "\t".join(fields) + "\n")
             for mis_rec in self.mislabels:
                 output = self.mis_rec_to_string(mis_rec)            
                 fo_all.write(output + "\n")
@@ -385,7 +397,7 @@ class LeaveOneTest:
         for place in placements:
 #            print "Placement # %d" % (seq_count + 1)
             seq_name = place["n"][0]
-            ranks, lws = self.classify_seq(seq_name, place)
+            ranks, lws = self.classify_seq(place)
             self.check_tax_labels(seq_name, ranks, lws)
             seq_count += 1
 
