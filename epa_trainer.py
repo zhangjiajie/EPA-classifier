@@ -5,7 +5,7 @@ import os
 import shutil
 from epac.ete2 import Tree, SeqGroup
 from epac.argparse import ArgumentParser,RawTextHelpFormatter
-from epac.config import EpacTrainerConfig
+from epac.config import EpacConfig,EpacTrainerConfig
 from epac.raxml_util import RaxmlWrapper, FileUtils
 from epac.taxonomy_util import Taxonomy, GGTaxonomyFile, TaxTreeBuilder
 from epac.json_util import RefJsonBuilder
@@ -13,17 +13,13 @@ from epac.erlang import tree_param
 from epac.msa import hmmer
 
 class RefTreeBuilder:
-    # this prefix will be added to every sequence name in reference to prevent 
-    # name clashes with query sequences, which are coded with numbers
-    REF_SEQ_PREFIX="r_"
-
     def __init__(self, config): 
         self.cfg = config
         self.mfresolv_job_name = self.cfg.subst_name("mfresolv_%NAME%")
         self.epalbl_job_name = self.cfg.subst_name("epalbl_%NAME%")
         self.optmod_job_name = self.cfg.subst_name("optmod_%NAME%")
         self.raxml_wrapper = RaxmlWrapper(config)
-        self.taxonomy = GGTaxonomyFile(config.taxonomy_fname, RefTreeBuilder.REF_SEQ_PREFIX)
+        self.taxonomy = GGTaxonomyFile(config.taxonomy_fname, EpacConfig.REF_SEQ_PREFIX)
         
         self.outgr_fname = self.cfg.tmp_fname("%NAME%_outgr.tre")
         self.reftree_mfu_fname = self.cfg.tmp_fname("%NAME%_mfu.tre")
@@ -72,24 +68,28 @@ class RefTreeBuilder:
         """This function transforms the input alignment in the following way:
            1. Filter out sequences which are not part of the reference tree
            2. Add sequence name prefix (r_)"""
+        in_file = self.cfg.align_fname
+        ref_seqs = None
+        formats = ["fasta", "phylip", "iphylip", "phylip_relaxed", "iphylip_relaxed"]
+        for fmt in formats:
+            try:
+                ref_seqs = SeqGroup(sequences=in_file, format = fmt)
+                break
+            except:
+                if self.cfg.debug:
+                    print("Guessing input format: not " + fmt)
+        if ref_seqs == None:
+            print("Invalid input file format: %s" % in_file)
+            print("The supported input formats are fasta and phylip")
+            sys.exit()
+
         self.refalign_fname = self.cfg.tmp_fname("%NAME%_matrix.afa")
-        take_seq = False
-        with open(self.cfg.align_fname, "r") as fin:
-            with open(self.refalign_fname, "w") as fout:
-                while True:
-                    line = fin.readline()
-                    if not line: 
-                        break
-                    if line[0] == ">":
-                        sid = RefTreeBuilder.REF_SEQ_PREFIX + line.strip()[1:]
-                        if sid in self.reftree_ids:
-                            fout.write(">" +  sid + "\n")
-                            take_seq = True
-                        else:
-                            take_seq = False
-                    elif take_seq:
-                        fout.write(line)
-    
+        with open(self.refalign_fname, "w") as fout:
+            for name, seq, comment, sid in ref_seqs.iter_entries():
+                seq_name = EpacConfig.REF_SEQ_PREFIX + name
+                if seq_name in self.reftree_ids:
+                    fout.write(">" + seq_name + "\n" + seq + "\n")
+
     def export_ref_taxonomy(self):
         self.taxonomy_map = {}
         

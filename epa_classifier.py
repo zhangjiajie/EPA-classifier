@@ -20,9 +20,6 @@ except ImportError, e:
 
 
 class EpaClassifier:
-    REF_PREFIX = "r_";
-    QUERY_PREFIX = "q_";
-
     def __init__(self, config, args):
         self.cfg = config
         try:
@@ -92,12 +89,12 @@ class EpaClassifier:
                     if ref_name in self.refjson.get_sequences_names():
                         seq_name = ref_name
                     else:
-                        seq_name = self.QUERY_PREFIX + name
+                        seq_name = EpacConfig.QUERY_SEQ_PREFIX + name
                     fout.write(">" + seq_name + "\n" + seq + "\n")
             return
             
         # add query seq name prefix to avoid confusion between reference and query sequences
-        self.seqs.add_name_prefix(self.QUERY_PREFIX)
+        self.seqs.add_name_prefix(EpacConfig.QUERY_SEQ_PREFIX)
         
         self.seqs.write(format="fasta", outfile=self.tmpquery)
         print("Checking if query sequences are aligned ...")
@@ -175,7 +172,7 @@ class EpaClassifier:
         for place in placements:
             output = None
             taxa_name = place["n"][0]
-            origin_taxa_name = taxa_name.lstrip(self.QUERY_PREFIX)
+            origin_taxa_name = taxa_name.lstrip(EpacConfig.QUERY_SEQ_PREFIX)
             edges = place["p"]
             edges = self.erlang_filter(edges, p = pv)
             if len(edges) > 0:
@@ -213,7 +210,7 @@ class EpaClassifier:
             for species in species_list:
                 translated_species = []
                 for taxa in species:
-                    origin_taxa_name = taxa.lstrip(self.QUERY_PREFIX)
+                    origin_taxa_name = taxa.lstrip(EpacConfig.QUERY_SEQ_PREFIX)
                     translated_species.append(origin_taxa_name)
                 s = ",".join(translated_species)
                 fo2.write(s + "\n")

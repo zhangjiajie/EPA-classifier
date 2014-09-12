@@ -17,6 +17,11 @@ def get_param(parser, section, option, ctype=str, default=None):
     return ctype(ret)
 
 class EpacConfig:
+    # this prefix will be added to every sequence name in reference to prevent 
+    # name clashes with query sequences, which are coded with numbers
+    REF_SEQ_PREFIX = "r_";
+    QUERY_SEQ_PREFIX = "q_";
+
     def __init__(self):
         self.set_defaults()
         
@@ -109,7 +114,11 @@ class EpacConfig:
         except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
             self.run_on_cluster = False
 
-        self.min_confidence = parser.getfloat("assignment", "min_confidence")
+        try:
+            self.min_confidence = parser.getfloat("assignment", "min_confidence")
+        except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
+            pass
+
         return parser
 
     def subst_name(self, in_str):
