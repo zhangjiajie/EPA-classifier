@@ -39,6 +39,19 @@ class Taxonomy:
 
 class GGTaxonomyFile(Taxonomy):
     rank_placeholders = ["k__", "p__", "c__", "o__", "f__", "g__", "s__"]    
+    
+    @staticmethod
+    def strip_prefix(ranks):
+        for i in range(len(ranks)):
+            ranks[i] = ranks[i].lstrip(GGTaxonomyFile.rank_placeholders[i])
+        return ranks
+
+    @staticmethod
+    def lineage_str(ranks, strip_prefix=False):
+        if strip_prefix:
+            ranks = GGTaxonomyFile.strip_prefix(ranks)
+        return Taxonomy.lineage_str(ranks);
+
 
     def __init__(self, tax_fname, prefix=""):
         self.tax_fname = tax_fname        
@@ -103,14 +116,17 @@ class GGTaxonomyFile(Taxonomy):
 
     def make_binomial_name(self, ranks):
         if ranks[6] != Taxonomy.EMPTY_RANK:
-            if ranks[5][:3] == self.rank_placeholders[5]:
-                genus_name = ranks[5][3:]
-            else:
-                genus_name = ranks[5]
-            if ranks[6][:3] == self.rank_placeholders[6]:
-                ranks[6] = ranks[6][:3] + genus_name + "_" + ranks[6][3:]
-            else:
-                ranks[6] = genus_name + "_" + sp_name
+            genus_name = ranks[5][3:]
+            sp_name = ranks[6][3:]
+            if not sp_name.startswith(genus_name):
+                ranks[6] = self.rank_placeholders[6] + genus_name + "_" + sp_name
+
+    def normalize_rank_name(self, rank, rank_name):
+        rank_name = rank_name.replace(" ", "_").replace("(", "").replace(")", "")
+        rank_prefix = self.rank_placeholders[rank]
+        if not rank_name.startswith(rank_prefix):
+            rank_name = rank_prefix + rank_name
+        return rank_name
 
     def load_taxonomy(self):
         print "Loading the taxonomy file..."
@@ -122,7 +138,7 @@ class GGTaxonomyFile(Taxonomy):
             ranks_str = toks[1]
             ranks = ranks_str.split(";")
             for i in range(len(ranks)):
-                rank_name = ranks[i].strip()
+                rank_name = self.normalize_rank_name(i, ranks[i].strip())
                 if rank_name in GGTaxonomyFile.rank_placeholders:
                     rank_name = Taxonomy.EMPTY_RANK
                 ranks[i] = rank_name
@@ -142,6 +158,8 @@ class GGTaxonomyFile(Taxonomy):
         dups = []
         for sid, ranks in self.seq_ranks_map.iteritems():
             for i in range(1, len(ranks)):
+                if ranks[i] == Taxonomy.EMPTY_RANK:
+                    break                
                 parent = ranks[i-1]
                 if not ranks[i] in parent_map:
                     parent_map[ranks[i]] = sid
