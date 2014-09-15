@@ -42,9 +42,10 @@ class GGTaxonomyFile(Taxonomy):
     
     @staticmethod
     def strip_prefix(ranks):
+        new_ranks = ['']*len(ranks);
         for i in range(len(ranks)):
-            ranks[i] = ranks[i].lstrip(GGTaxonomyFile.rank_placeholders[i])
-        return ranks
+            new_ranks[i] = ranks[i].lstrip(GGTaxonomyFile.rank_placeholders[i])
+        return new_ranks
 
     @staticmethod
     def lineage_str(ranks, strip_prefix=False):
