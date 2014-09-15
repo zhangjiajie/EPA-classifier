@@ -160,7 +160,13 @@ class EpaClassifier:
             self.refjson.get_binary_model(optmod_fname)
             job_name = self.cfg.subst_name("epa_%NAME%")
             reduced_align_fname = raxml.reduce_alignment(self.epa_alignment)
-            jp = raxml.run_epa(job_name, reduced_align_fname, reftree_fname, optmod_fname)
+
+            reftree_str = self.refjson.get_raxml_readable_tree()
+            reftree = Tree(reftree_str)
+
+            self.reftree_size = len(reftree.get_leaves())
+
+            jp = raxml.run_epa(job_name, reduced_align_fname, reftree_fname, self.reftree_size, optmod_fname)
         
         placements = jp.get_placement()
         

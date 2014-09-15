@@ -53,14 +53,14 @@ class RaxmlWrapper:
     def reduce_alignment(self, align_fname, job_name="reduce"):
         reduced_fname = align_fname + ".reduced"
         FileUtils.remove_if_exists(reduced_fname)
-        self.run(job_name, ["-f", "c", "-s", align_fname])
+        self.run(job_name, ["-f", "c", "-s", align_fname], 0)
         self.cleanup(job_name)
         if os.path.isfile(reduced_fname):
             return reduced_fname
         else:
             return align_fname
 
-    def run_epa(self, job_name, align_fname, reftree_fname, optmod_fname="", silent=True, leave_one_test=False):
+    def run_epa(self, job_name, align_fname, reftree_fname, tree_size, optmod_fname="", silent=True, leave_one_test=False):
         raxml_params = ["-s", align_fname, "-t", reftree_fname]
         if leave_one_test:
             raxml_params += ["-f", "l"]
@@ -76,7 +76,7 @@ class RaxmlWrapper:
                 print "WARNING: Binary model file not found: %s" % optmod_fname
                 print "WARNING: Model parameters will be estimated by RAxML"
                 
-        self.run(job_name, raxml_params, silent)
+        self.run(job_name, raxml_params, tree_size, silent)
         
         if leave_one_test:
             stem = "leaveOneOutResults"
@@ -91,9 +91,16 @@ class RaxmlWrapper:
                     % self.make_raxml_fname("output", job_name)
             sys.exit()
 
-    def run(self, job_name, params, silent=True):
-        self.cleanup(job_name)        
-        params += ["-m", self.config.raxml_model, "-n", job_name]
+    def run(self, job_name, params, tree_size, silent=True):
+        self.cleanup(job_name)
+        if self.config.raxml_model.upper() == "AUTO":
+            if tree_size > 500:
+                model = "GTRCAT"
+            else:
+                model = "GTRGAMMA"
+        else:
+            model = self.config.raxml_model
+        params += ["-m", model, "-n", job_name]
         params += ["--no-seq-check", "--no-bfgs"]
 
         if self.config.run_on_cluster:

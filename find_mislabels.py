@@ -390,7 +390,7 @@ class LeaveOneTest:
         if self.jplace_fname:
             jp = EpaJsonParser(self.jplace_fname)
         else:        
-            jp = self.raxml.run_epa(job_name, self.refalign_fname, self.reftree_fname, self.optmod_fname, leave_one_test=True)
+            jp = self.raxml.run_epa(job_name, self.refalign_fname, self.reftree_fname, self.reftree_size, self.optmod_fname, leave_one_test=True)
 
         placements = jp.get_placement()
         seq_count = 0
@@ -415,7 +415,9 @@ class LeaveOneTest:
         reftree_str = self.refjson.get_raxml_readable_tree()
         reftree = Tree(reftree_str)
 
-        print "Total sequences: %d\n" % len(reftree.get_leaves())
+        self.reftree_size = len(reftree.get_leaves())
+
+        print "Total sequences: %d\n" % self.reftree_size
 
 #        self.family_stats_fname = "%s_family.stats" % self.output_fname
 #        self.cnt_family = {}

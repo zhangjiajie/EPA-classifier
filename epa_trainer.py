@@ -147,7 +147,7 @@ class RefTreeBuilder:
 
         print "\nResolving multifurcation: \n"
         raxml_params = ["-s", self.reduced_refalign_fname, "-g", self.reftree_mfu_fname, "-F"]
-        self.raxml_wrapper.run(self.mfresolv_job_name, raxml_params)
+        self.raxml_wrapper.run(self.mfresolv_job_name, raxml_params, self.reftree_size)
         if self.raxml_wrapper.result_exists(self.mfresolv_job_name):        
 #            self.raxml_wrapper.copy_result_tree(self.mfresolv_job_name, self.reftree_bfu_fname)
 #            self.raxml_wrapper.copy_optmod_params(self.mfresolv_job_name, self.optmod_fname)
@@ -157,7 +157,7 @@ class RefTreeBuilder:
             # RAxML call to optimize model parameters and write them down to the binary model file
             print "\nOptimizing model parameters: \n"
             raxml_params = ["-f", "e", "-s", self.reduced_refalign_fname, "-t", bfu_fname, "-H"]
-            self.raxml_wrapper.run(self.optmod_job_name, raxml_params)
+            self.raxml_wrapper.run(self.optmod_job_name, raxml_params, self.reftree_size)
             if self.raxml_wrapper.result_exists(self.optmod_job_name):
                 self.raxml_wrapper.copy_result_tree(self.optmod_job_name, self.reftree_bfu_fname)
                 self.raxml_wrapper.copy_optmod_params(self.optmod_job_name, self.optmod_fname)
@@ -201,7 +201,7 @@ class RefTreeBuilder:
             fout.write(">" + "DUMMY131313" + "\n")        
             fout.write("A"*seqlen + "\n")        
         
-        epa_result = self.raxml_wrapper.run_epa(self.epalbl_job_name, self.lblalign_fname, self.reftree_bfu_fname, self.optmod_fname)
+        epa_result = self.raxml_wrapper.run_epa(self.epalbl_job_name, self.lblalign_fname, self.reftree_bfu_fname, self.reftree_size, self.optmod_fname)
         self.reftree_lbl_str = epa_result.get_std_newick_tree()
         if self.raxml_wrapper.epa_result_exists(self.epalbl_job_name):        
             if not self.cfg.debug:
