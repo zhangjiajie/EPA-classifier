@@ -8,13 +8,21 @@ import datetime
 import time
 import ConfigParser
 
-def get_param(parser, section, option, ctype=str, default=None):
-    if default is None:
-        ret = parser.get(section, option)
-    else:
-        confdict = parser.__dict__.get('_sections')
-        ret = confdict.get(section).get(option, default)
-    return ctype(ret)
+class DefaultedConfigParser(ConfigParser.SafeConfigParser):
+    def get_param(self, section, option, ctype=str, default=None):
+        if default is None:
+            ret = self.get(section, option)
+        else:
+            confdict = self.__dict__.get('_sections')
+            sec = confdict.get(section)
+            if sec:
+                if ctype == bool:
+                    ret = self.getboolean(section, option)
+                else:
+                    ret = sec.get(option, default)
+            else:
+                ret = default
+        return ctype(ret)
 
 class EpacConfig:
     # this prefix will be added to every sequence name in reference to prevent 
@@ -59,6 +67,8 @@ class EpacConfig:
         self.raxml_remote_host = ""
         self.raxml_remote_call = False        
         self.run_on_cluster = False
+        self.cluster_epac_home = self.epac_home
+        self.cluster_qsub_script = ""
         self.epa_load_optmod = True
         self.epa_use_heuristic = True
         self.epa_heur_rate = 0.01
@@ -84,40 +94,28 @@ class EpacConfig:
             print "Config file not found: " + config_fname
             sys.exit()
 
-        parser = ConfigParser.SafeConfigParser()
+        parser = DefaultedConfigParser() #ConfigParser.SafeConfigParser()
         parser.read(config_fname)
         
-        try:
-            self.raxml_home = parser.get("raxml", "raxml_home") + "/"
-            self.raxml_exec = parser.get("raxml", "raxml_exec")
-            self.raxml_remote_host = parser.get("raxml", "raxml_remote_host")
-        except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
-            pass
+        self.raxml_home = parser.get_param("raxml", "raxml_home", str, self.raxml_home) + "/"
+        self.raxml_exec = parser.get_param("raxml", "raxml_exec", str, self.raxml_exec)
+        self.raxml_remote_host = parser.get_param("raxml", "raxml_remote_host", str, self.raxml_remote_host)
 
-        self.raxml_model = parser.get("raxml", "raxml_model")
-        self.num_threads = parser.getint("raxml", "raxml_threads")
+        self.raxml_model = parser.get_param("raxml", "raxml_model", str, self.raxml_model)
+        self.num_threads = parser.get_param("raxml", "raxml_threads", int, self.num_threads)
 
-        self.epa_use_heuristic = parser.getboolean("raxml", "epa_use_heuristic")
-        self.epa_heur_rate = parser.getfloat("raxml", "epa_heur_rate")
-        self.epa_load_optmod = parser.getboolean("raxml", "epa_load_optmod")
+        self.epa_use_heuristic = parser.get_param("raxml", "epa_use_heuristic", bool, self.epa_use_heuristic)
+        self.epa_heur_rate = parser.get_param("raxml", "epa_heur_rate", float, self.epa_heur_rate)
+        self.epa_load_optmod = parser.get_param("raxml", "epa_load_optmod", bool, self.epa_load_optmod)
 
-        try:
-            self.hmmer_home = parser.get("hmmer", "hmmer_home")
-            self.muscle_home = parser.get("muscle", "muscle_home")
-        except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
-            pass
+        self.hmmer_home = parser.get_param("hmmer", "hmmer_home", str, self.hmmer_home)
+        self.muscle_home = parser.get_param("muscle", "muscle_home", str, self.muscle_home)
         
-        try:        
-            self.run_on_cluster = parser.getboolean("cluster", "run_on_cluster")
-            self.cluster_epac_home = parser.get("cluster", "cluster_epac_home") + "/"
-            self.cluster_qsub_script = parser.get("cluster", "cluster_qsub_script")
-        except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
-            self.run_on_cluster = False
+        self.run_on_cluster = parser.get_param("cluster", "run_on_cluster", bool, self.run_on_cluster)
+        self.cluster_epac_home = parser.get_param("cluster", "cluster_epac_home", str, self.cluster_epac_home) + "/"
+        self.cluster_qsub_script = parser.get_param("cluster", "cluster_qsub_script", str, self.cluster_qsub_script)
 
-        try:
-            self.min_confidence = parser.getfloat("assignment", "min_confidence")
-        except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
-            pass
+        self.min_confidence = parser.get_param("assignment", "min_confidence", float, self.min_confidence)
 
         return parser
 
@@ -148,15 +146,12 @@ class EpacTrainerConfig(EpacConfig):
     def read_from_file(self, config_fname):
         parser = EpacConfig.read_from_file(self, config_fname)
         
-        try:
-            self.reftree_min_rank = get_param(parser, "reftree", "min_rank", int, self.reftree_min_rank)
-            self.reftree_max_seqs_per_leaf = get_param(parser, "reftree", "max_seqs_per_leaf", int, self.reftree_max_seqs_per_leaf)
-            clades_str = get_param(parser, "reftree", "clades_to_include", str, "")
-            self.reftree_clades_to_include = self.parse_clades(clades_str)
-            clades_str = get_param(parser, "reftree", "clades_to_ignore", str, "")
-            self.reftree_clades_to_ignore = self.parse_clades(clades_str)
-        except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
-            pass            
+        self.reftree_min_rank = parser.get_param("reftree", "min_rank", int, self.reftree_min_rank)
+        self.reftree_max_seqs_per_leaf = parser.get_param("reftree", "max_seqs_per_leaf", int, self.reftree_max_seqs_per_leaf)
+        clades_str = parser.get_param("reftree", "clades_to_include", str, "")
+        self.reftree_clades_to_include = self.parse_clades(clades_str)
+        clades_str = parser.get_param("reftree", "clades_to_ignore", str, "")
+        self.reftree_clades_to_ignore = self.parse_clades(clades_str)
         
     def parse_clades(self, clades_str):
         clade_list = []
