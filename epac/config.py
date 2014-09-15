@@ -132,6 +132,7 @@ class EpacTrainerConfig(EpacConfig):
     def __init__(self, args):
         self.taxonomy_fname = args.taxonomy_fname
         self.align_fname = args.align_fname
+        self.no_hmmer = args.no_hmmer
         EpacConfig.__init__(self, args)
         
     def set_defaults(self):

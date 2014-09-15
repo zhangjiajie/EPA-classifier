@@ -53,11 +53,16 @@ class EpaClassifier:
 
 
     def align_to_refenence(self, noalign, minp = 0.9):
-        self.refjson.get_hmm_profile(self.hmmprofile)
         refaln = self.refjson.get_alignment(fout = self.tmp_refaln)
-        hm = hmmer(config = self.cfg, refalign = refaln , query = self.tmpquery, refprofile = self.hmmprofile, discard = noalign, seqs = self.seqs, minp = minp)
+        fprofile = self.refjson.get_hmm_profile(self.hmmprofile)
+        
+        # if there is no hmmer profile in json file, build it from scratch          
+        if not fprofile:
+            hmm = hmmer(self.cfg, refaln)
+            fprofile = hmm.build_hmm_profile()
+    
+        hm = hmmer(config = self.cfg, refalign = refaln , query = self.tmpquery, refprofile = fprofile, discard = noalign, seqs = self.seqs, minp = minp)
         self.epa_alignment = hm.align()
-
 
     def merge_alignment(self, query_seqs):
         refaln = self.refjson.get_alignment_list()
@@ -148,7 +153,6 @@ class EpaClassifier:
 
 
     def classify(self, query_fname, fout = None, method = "1", minlw = 0.0, pv = 0.02, minp = 0.9, ptp = False):
-        self.checkinput(query_fname, minp)
         if self.jplace_fname:
             jp = EpaJsonParser(self.jplace_fname)
         else:        

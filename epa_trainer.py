@@ -358,6 +358,23 @@ class RefTreeBuilder:
             print("Error: input tree not birfurcating")
             return set([])
 
+    def build_hmm_profile(self, json_builder):
+        print "Building the HMMER profile...\n"
+
+        # this stupid workaround is needed because RAxML outputs the reduced
+        # alignment in relaxed PHYLIP format, which is not supported by HMMER
+        refalign_fasta = self.cfg.tmp_fname("%NAME%_ref_reduced.fa")
+        self.reduced_refalign_seqs.write(outfile=refalign_fasta)
+
+        hmm = hmmer(self.cfg, refalign_fasta)
+        fprofile = hmm.build_hmm_profile()
+
+        json_builder.set_hmm_profile(fprofile)
+        
+        if not self.cfg.debug:
+            FileUtils.remove_if_exists(refalign_fasta)
+            FileUtils.remove_if_exists(fprofile)
+
     def write_json(self):
         jw = RefJsonBuilder()
 
@@ -368,21 +385,9 @@ class RefTreeBuilder:
         seqs = self.reduced_refalign_seqs.get_entries()    
         jw.set_sequences(seqs)
         
-        # this stupid workaround is needed because RAxML outputs the reduced
-        # alignment in relaxed PHYLIP format, which is not supported by HMMER
-        refalign_fasta = self.cfg.tmp_fname("%NAME%_ref_reduced.fa")
-        self.reduced_refalign_seqs.write(outfile=refalign_fasta)
+        if not self.cfg.no_hmmer:
+            self.build_hmm_profile(jw)
 
-        print "Building the HMMER profile...\n"
-
-        hmm = hmmer(self.cfg, refalign_fasta)
-        fprofile = hmm.build_hmm_profile()
-        jw.set_hmm_profile(fprofile)
-        
-        if not self.cfg.debug:
-            FileUtils.remove_if_exists(refalign_fasta)
-            FileUtils.remove_if_exists(fprofile)
- 
         orig_tax = self.taxonomy_map
         jw.set_origin_taxonomy(orig_tax)
         
@@ -455,6 +460,8 @@ information needed for taxonomic placement of query sequences.""")
             help="""Print additional info messages to the console.""")
     parser.add_argument("-debug", dest="debug", action="store_true",
             help="""Debug mode, intermediate files will not be cleaned up.""")
+    parser.add_argument("-no-hmmer", dest="no_hmmer", action="store_true",
+            help="""Do not build HMMER profile.""")
     parser.add_argument("-c", dest="config_fname", default=None,
             help="""Config file name.""")
     parser.add_argument("-n", dest="output_name", default=None,

@@ -79,8 +79,6 @@ class RefJsonChecker:
             hmm_profile = self.jdata["hmm_profile"]
             if not isinstance(hmm_profile, list):
                 return False
-        else:
-            return False
 
         #binary_model
         if "binary_model" in self.jdata:
@@ -183,10 +181,14 @@ class RefJsonParser:
         return len(entries[0][1])
     
     def get_hmm_profile(self, fout):
-        lines = self.jdata["hmm_profile"]
-        with open(fout, "w") as fo:
-            for line in lines:
-                fo.write(line)
+        if "hmm_profile" in self.jdata:        
+            lines = self.jdata["hmm_profile"]
+            with open(fout, "w") as fo:
+                for line in lines:
+                    fo.write(line)
+            return fout
+        else:
+            return None
 
     def get_binary_model(self, fout):
         model_str = self.jdata["binary_model"]
