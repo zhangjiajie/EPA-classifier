@@ -146,7 +146,7 @@ class RefTreeBuilder:
             orig_raxml_model = ""
 
         print "\nResolving multifurcation: \n"
-        raxml_params = ["-s", self.reduced_refalign_fname, "-g", self.reftree_mfu_fname, "-F"]
+        raxml_params = ["-s", self.reduced_refalign_fname, "-g", self.reftree_mfu_fname, "-F", "--no-seq-check"]
         self.raxml_wrapper.run(self.mfresolv_job_name, raxml_params, self.reftree_size)
         if self.raxml_wrapper.result_exists(self.mfresolv_job_name):        
 #            self.raxml_wrapper.copy_result_tree(self.mfresolv_job_name, self.reftree_bfu_fname)
@@ -156,7 +156,7 @@ class RefTreeBuilder:
 
             # RAxML call to optimize model parameters and write them down to the binary model file
             print "\nOptimizing model parameters: \n"
-            raxml_params = ["-f", "e", "-s", self.reduced_refalign_fname, "-t", bfu_fname, "-H"]
+            raxml_params = ["-f", "e", "-s", self.reduced_refalign_fname, "-t", bfu_fname, "-H", "--no-seq-check"]
             self.raxml_wrapper.run(self.optmod_job_name, raxml_params, self.reftree_size)
             if self.raxml_wrapper.result_exists(self.optmod_job_name):
                 self.raxml_wrapper.copy_result_tree(self.optmod_job_name, self.reftree_bfu_fname)

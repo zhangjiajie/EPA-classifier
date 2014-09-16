@@ -62,8 +62,10 @@ class RaxmlWrapper:
 
     def run_epa(self, job_name, align_fname, reftree_fname, tree_size, optmod_fname="", silent=True, leave_one_test=False):
         raxml_params = ["-s", align_fname, "-t", reftree_fname]
+        # assume that by the time we call EPA reference has been cleaned already (e.g. with previous reduce_alignment call)
+        raxml_params += ["--no-seq-check"]
         if leave_one_test:
-            raxml_params += ["-f", "l"]
+            raxml_params += ["-f", "O"]
         else:
             raxml_params += ["-f", "v"]
 
@@ -101,7 +103,7 @@ class RaxmlWrapper:
         else:
             model = self.config.raxml_model
         params += ["-m", model, "-n", job_name]
-        params += ["--no-seq-check", "--no-bfgs"]
+        params += ["--no-bfgs"]
 
         if self.config.run_on_cluster:
             self.run_cluster(params)
