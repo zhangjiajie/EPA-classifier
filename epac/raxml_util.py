@@ -69,8 +69,14 @@ class RaxmlWrapper:
         else:
             raxml_params += ["-f", "v"]
 
-        if self.config.epa_use_heuristic:
-            raxml_params += ["-G", str(self.config.epa_heur_rate)]
+        if self.config.epa_use_heuristic.upper() in ["TRUE", "YES", "1"]:
+            raxml_params += ["-G", str(self.config.epa_heur_rate)]            
+        elif self.config.epa_use_heuristic.upper() == "AUTO":
+           heur_thres = 1000
+           if tree_size > heur_thres:
+                heur_rate = 0.5 * float(heur_thres) / tree_size
+                raxml_params += ["-G", str(heur_rate)]            
+
         if self.config.epa_load_optmod and optmod_fname:
             if os.path.isfile(optmod_fname):
                 raxml_params += ["-R", optmod_fname, "-H"]
