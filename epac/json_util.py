@@ -15,7 +15,9 @@ class RefJsonChecker:
         else:
             self.jdata = jdata
     
-    def valid(self, ver = "1.0"):
+    def valid(self, ver = "1.1"):
+        nver = float(ver)
+
         #tree
         if "tree" in self.jdata:
             tree = self.jdata["tree"]
@@ -79,6 +81,8 @@ class RefJsonChecker:
             hmm_profile = self.jdata["hmm_profile"]
             if not isinstance(hmm_profile, list):
                 return False
+        elif nver < 1.1:
+            return False
 
         #binary_model
         if "binary_model" in self.jdata:
@@ -87,6 +91,17 @@ class RefJsonChecker:
                 return False
         else:
             return False
+
+        if nver >= 1.1:
+            #ratehet_model
+            if "ratehet_model" in self.jdata:
+                ratehet_str = self.jdata["ratehet_model"]
+                if not isinstance(ratehet_str, unicode):
+                    return False
+                elif ratehet_str not in ["GTRGAMMA", "GTRCAT"]:
+                    return False
+            else:
+                return False
         
         return True
 
@@ -107,14 +122,21 @@ class EpaJsonParser:
         tree = tree.replace("}", "]")
         return tree
 
+    def get_raxml_version(self):
+        return self.jdata["metadata"]["raxml_version"]
+
+    def get_raxml_invocation(self):
+        return self.jdata["metadata"]["invocation"]
+
 class RefJsonParser:
     """This class parses the EPA Classifier reference json file"""
-    def __init__(self, jsonfin):
+    def __init__(self, jsonfin, ver = "1.1"):
         self.jdata = json.load(open(jsonfin))
+        self.version = ver
         
     def validate(self):
         jc = RefJsonChecker(jdata = self.jdata)
-        if not jc.valid():
+        if not jc.valid(self.version):
             print("Invalid reference database format")
             sys.exit()
     
@@ -202,8 +224,8 @@ class RefJsonBuilder:
             self.jdata = old_json.jdata
         else:
             self.jdata = {}
-            self.jdata["version"] = "1.0"
-            self.jdata["author"] = "Jiajie Zhang"
+            self.jdata["version"] = "1.1"
+#            self.jdata["author"] = "Jiajie Zhang"
         
     def set_taxonomy(self, bid_ranks_map):
         self.jdata["taxonomy"] = bid_ranks_map
@@ -237,7 +259,15 @@ class RefJsonBuilder:
             model_str = base64.b64encode(fin.read())
         self.jdata["binary_model"] = model_str
 
+    def set_ratehet_model(self, model):
+        self.jdata["ratehet_model"] = model
+
+    def set_metadata(self, metadata):    
+        self.jdata["metadata"] = metadata
+
     def dump(self, out_fname):
+        self.jdata.pop("fields", 0)
+        self.jdata["fields"] = self.jdata.keys()
         with open(out_fname, "w") as fo:
             json.dump(self.jdata, fo, indent=4, sort_keys=True)                
 

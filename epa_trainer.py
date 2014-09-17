@@ -3,6 +3,7 @@
 import sys
 import os
 import shutil
+import datetime
 from epac.ete2 import Tree, SeqGroup
 from epac.argparse import ArgumentParser,RawTextHelpFormatter
 from epac.config import EpacConfig,EpacTrainerConfig
@@ -139,7 +140,7 @@ class RefTreeBuilder:
         self.reduced_refalign_fname = self.raxml_wrapper.reduce_alignment(self.refalign_fname)
         
         # hack: use CAT for large trees, since GAMMA has numerical problems with them
-        if self.reftree_size > 10000 and self.cfg.raxml_model != "GTRCAT":
+        if self.reftree_size > 10000 and self.cfg.raxml_model == "GTRGAMMA":
             orig_raxml_model = self.cfg.raxml_model
             self.cfg.raxml_model = "GTRCAT"
         else:
@@ -147,7 +148,7 @@ class RefTreeBuilder:
 
         print "\nResolving multifurcation: \n"
         raxml_params = ["-s", self.reduced_refalign_fname, "-g", self.reftree_mfu_fname, "-F", "--no-seq-check"]
-        self.raxml_wrapper.run(self.mfresolv_job_name, raxml_params, self.reftree_size)
+        self.invocation_raxml_multif = self.raxml_wrapper.run(self.mfresolv_job_name, raxml_params, self.reftree_size)
         if self.raxml_wrapper.result_exists(self.mfresolv_job_name):        
 #            self.raxml_wrapper.copy_result_tree(self.mfresolv_job_name, self.reftree_bfu_fname)
 #            self.raxml_wrapper.copy_optmod_params(self.mfresolv_job_name, self.optmod_fname)
@@ -157,7 +158,7 @@ class RefTreeBuilder:
             # RAxML call to optimize model parameters and write them down to the binary model file
             print "\nOptimizing model parameters: \n"
             raxml_params = ["-f", "e", "-s", self.reduced_refalign_fname, "-t", bfu_fname, "-H", "--no-seq-check"]
-            self.raxml_wrapper.run(self.optmod_job_name, raxml_params, self.reftree_size)
+            self.invocation_raxml_optmod = self.raxml_wrapper.run(self.optmod_job_name, raxml_params, self.reftree_size)
             if self.raxml_wrapper.result_exists(self.optmod_job_name):
                 self.raxml_wrapper.copy_result_tree(self.optmod_job_name, self.reftree_bfu_fname)
                 self.raxml_wrapper.copy_optmod_params(self.optmod_job_name, self.optmod_fname)
@@ -194,15 +195,18 @@ class RefTreeBuilder:
     # dummy EPA run to label the branches of the reference tree, which we need to build a mapping to tax ranks    
     def epa_branch_labeling(self):
         # create alignment with dummy query seq
-        seqlen = len(self.reduced_refalign_seqs.get_seqbyid(0))
+        self.refalign_width = len(self.reduced_refalign_seqs.get_seqbyid(0))
         self.reduced_refalign_seqs.write(format="fasta", outfile=self.lblalign_fname)
         
         with open(self.lblalign_fname, "a") as fout:
             fout.write(">" + "DUMMY131313" + "\n")        
-            fout.write("A"*seqlen + "\n")        
+            fout.write("A"*self.refalign_width + "\n")        
         
         epa_result = self.raxml_wrapper.run_epa(self.epalbl_job_name, self.lblalign_fname, self.reftree_bfu_fname, self.reftree_size, self.optmod_fname)
         self.reftree_lbl_str = epa_result.get_std_newick_tree()
+        self.raxml_version = epa_result.get_raxml_version()
+        self.invocation_raxml_epalbl = epa_result.get_raxml_invocation()
+
         if self.raxml_wrapper.epa_result_exists(self.epalbl_job_name):        
             if not self.cfg.debug:
                 self.raxml_wrapper.cleanup(self.epalbl_job_name, True)
@@ -381,6 +385,18 @@ class RefTreeBuilder:
         jw.set_taxonomy(self.bid_ranks_map)
         jw.set_tree(self.reftree_lbl_str)
         jw.set_outgroup(self.reftree_outgroup)
+        jw.set_ratehet_model(self.cfg.raxml_model)
+
+        mdata = { "ref_tree_size": self.reftree_size, 
+                  "ref_alignment_width": self.refalign_width,
+                  "raxml_version": self.raxml_version,
+                  "timestamp": str(datetime.datetime.now()),
+                  "invocation_epac": self.invocation_epac,
+                  "invocation_raxml_multif": self.invocation_raxml_multif,
+                  "invocation_raxml_optmod": self.invocation_raxml_optmod,
+                  "invocation_raxml_epalbl": self.invocation_raxml_epalbl
+                }
+        jw.set_metadata(mdata)
 
         seqs = self.reduced_refalign_seqs.get_entries()    
         jw.set_sequences(seqs)
@@ -501,6 +517,7 @@ if __name__ == "__main__":
     check_args(args)
     config = EpacTrainerConfig(args)
     builder = RefTreeBuilder(config)
+    builder.invocation_epac = " ".join(sys.argv)
     builder.build_ref_tree()
     if not args.debug:
         builder.cleanup()

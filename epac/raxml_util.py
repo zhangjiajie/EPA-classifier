@@ -128,6 +128,8 @@ class RaxmlWrapper:
         else:        
             call(call_str)
 
+        return ' '.join(call_str)
+
     def run_cluster(self, params):
         if self.config.raxml_remote_call:
             qsub_call_str = ["ssh", self.config.raxml_remote_host]
