@@ -390,7 +390,7 @@ class LeaveOneTest:
         if self.jplace_fname:
             jp = EpaJsonParser(self.jplace_fname)
         else:        
-            jp = self.raxml.run_epa(job_name, self.refalign_fname, self.reftree_fname, self.reftree_size, self.optmod_fname, leave_one_test=True)
+            jp = self.raxml.run_epa(job_name, self.refalign_fname, self.reftree_fname, self.optmod_fname, leave_one_test=True)
 
         placements = jp.get_placement()
         seq_count = 0
@@ -416,6 +416,12 @@ class LeaveOneTest:
         reftree = Tree(reftree_str)
 
         self.reftree_size = len(reftree.get_leaves())
+
+        # IMPORTANT: set EPA heuristic rate based on tree size!                
+        self.cfg.resolve_auto_settings(self.reftree_size)
+        # If we're loading the pre-optimized model, we MUST set the same rate het. mode as in the ref file        
+        if self.cfg.epa_load_optmod:
+            self.cfg.raxml_model = self.refjson.get_ratehet_model()
 
         print "Total sequences: %d\n" % self.reftree_size
 

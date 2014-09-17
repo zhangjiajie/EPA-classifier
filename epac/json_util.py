@@ -216,6 +216,12 @@ class RefJsonParser:
         model_str = self.jdata["binary_model"]
         with open(fout, "wb") as fo:
             fo.write(base64.b64decode(model_str))
+
+    def get_ratehet_model(self):
+        return self.jdata["ratehet_model"]
+
+    def get_metadata(self):
+        return self.jdata["metadata"]
                 
 class RefJsonBuilder:
     """This class builds the EPA Classifier reference json file"""

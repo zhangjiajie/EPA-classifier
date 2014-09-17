@@ -30,6 +30,11 @@ class EpacConfig:
     REF_SEQ_PREFIX = "r_";
     QUERY_SEQ_PREFIX = "q_";
 
+    CAT_LOWER_THRES   = 100
+    CAT_GAMMA_THRES   = 500
+    GAMMA_UPPER_THRES = 10000
+    EPA_HEUR_THRES    = 1000
+
     def __init__(self):
         self.set_defaults()
         
@@ -63,17 +68,36 @@ class EpacConfig:
         self.hmmer_home = self.epac_home + "/epac/bin" + "/"
         self.raxml_home = self.epac_home + "/epac/bin" + "/"
         self.raxml_exec = "raxmlHPC-PTHREADS-SSE3"
-        self.raxml_model = "GTRCAT"
+        self.raxml_model = "AUTO"
         self.raxml_remote_host = ""
         self.raxml_remote_call = False        
         self.run_on_cluster = False
         self.cluster_epac_home = self.epac_home
         self.cluster_qsub_script = ""
         self.epa_load_optmod = True
-        self.epa_use_heuristic = "auto"
+        self.epa_use_heuristic = "AUTO"
         self.epa_heur_rate = 0.01
         self.min_confidence = 0.2
         self.num_threads = 2
+
+    def resolve_auto_settings(self, tree_size):
+        if self.raxml_model == "AUTO":
+            if tree_size > EpacConfig.CAT_GAMMA_THRES:
+                self.raxml_model = "GTRCAT"
+            else:
+                self.raxml_model = "GTRGAMMA"
+        elif self.raxml_model == "GTRCAT" and tree_size < EpacConfig.CAT_LOWER_THRES:
+            print "WARNING: You're using GTRCAT model on a very small dataset (%d taxa), which might lead to unreliable results!" % tree_size
+            print "Please consider switching to GTRGAMMA model.\n"
+        elif self.raxml_model == "GTRGAMMA" and tree_size > EpacConfig.GAMMA_UPPER_THRES:
+            print "WARNING: You're using GTRGAMMA model on a very large dataset (%d taxa), which might lead to numerical issues!" % tree_size
+            print "In case of problems, please consider switching to GTRCAT model.\n"
+
+        if self.epa_use_heuristic == "AUTO" and tree_size > EpacConfig.EPA_HEUR_THRES:
+            self.epa_use_heuristic == "TRUE"
+            self.epa_heur_rate = 0.5 * float(EpacConfig.EPA_HEUR_THRES) / tree_size
+        else:
+            self.epa_use_heuristic == "FALSE"
         
     def check_raxml(self):
         self.raxml_exec_full = self.raxml_home + self.raxml_exec
@@ -101,10 +125,10 @@ class EpacConfig:
         self.raxml_exec = parser.get_param("raxml", "raxml_exec", str, self.raxml_exec)
         self.raxml_remote_host = parser.get_param("raxml", "raxml_remote_host", str, self.raxml_remote_host)
 
-        self.raxml_model = parser.get_param("raxml", "raxml_model", str, self.raxml_model)
+        self.raxml_model = parser.get_param("raxml", "raxml_model", str, self.raxml_model).upper()
         self.num_threads = parser.get_param("raxml", "raxml_threads", int, self.num_threads)
 
-        self.epa_use_heuristic = parser.get_param("raxml", "epa_use_heuristic", str, self.epa_use_heuristic)
+        self.epa_use_heuristic = parser.get_param("raxml", "epa_use_heuristic", str, self.epa_use_heuristic).upper()
         self.epa_heur_rate = parser.get_param("raxml", "epa_heur_rate", float, self.epa_heur_rate)
         self.epa_load_optmod = parser.get_param("raxml", "epa_load_optmod", bool, self.epa_load_optmod)
 

@@ -163,14 +163,21 @@ class EpaClassifier:
             optmod_fname = self.cfg.tmp_fname("%NAME%.opt")
             self.refjson.get_binary_model(optmod_fname)
             job_name = self.cfg.subst_name("epa_%NAME%")
-            reduced_align_fname = raxml.reduce_alignment(self.epa_alignment)
 
             reftree_str = self.refjson.get_raxml_readable_tree()
             reftree = Tree(reftree_str)
 
             self.reftree_size = len(reftree.get_leaves())
 
-            jp = raxml.run_epa(job_name, reduced_align_fname, reftree_fname, self.reftree_size, optmod_fname)
+            # IMPORTANT: set EPA heuristic rate based on tree size!                
+            self.cfg.resolve_auto_settings(self.reftree_size)
+            # If we're loading the pre-optimized model, we MUST set the same rate het. mode as in the ref file        
+            if self.cfg.epa_load_optmod:
+                self.cfg.raxml_model = self.refjson.get_ratehet_model()
+
+            reduced_align_fname = raxml.reduce_alignment(self.epa_alignment)
+
+            jp = raxml.run_epa(job_name, reduced_align_fname, reftree_fname, optmod_fname)
         
         placements = jp.get_placement()
         

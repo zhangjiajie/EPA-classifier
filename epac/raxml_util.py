@@ -53,14 +53,14 @@ class RaxmlWrapper:
     def reduce_alignment(self, align_fname, job_name="reduce"):
         reduced_fname = align_fname + ".reduced"
         FileUtils.remove_if_exists(reduced_fname)
-        self.run(job_name, ["-f", "c", "-s", align_fname], 0)
+        self.run(job_name, ["-f", "c", "-s", align_fname])
         self.cleanup(job_name)
         if os.path.isfile(reduced_fname):
             return reduced_fname
         else:
             return align_fname
 
-    def run_epa(self, job_name, align_fname, reftree_fname, tree_size, optmod_fname="", silent=True, leave_one_test=False):
+    def run_epa(self, job_name, align_fname, reftree_fname, optmod_fname="", silent=True, leave_one_test=False):
         raxml_params = ["-s", align_fname, "-t", reftree_fname]
         # assume that by the time we call EPA reference has been cleaned already (e.g. with previous reduce_alignment call)
         raxml_params += ["--no-seq-check"]
@@ -69,13 +69,8 @@ class RaxmlWrapper:
         else:
             raxml_params += ["-f", "v"]
 
-        if self.config.epa_use_heuristic.upper() in ["TRUE", "YES", "1"]:
+        if self.config.epa_use_heuristic in ["TRUE", "YES", "1"]:
             raxml_params += ["-G", str(self.config.epa_heur_rate)]            
-        elif self.config.epa_use_heuristic.upper() == "AUTO":
-           heur_thres = 1000
-           if tree_size > heur_thres:
-                heur_rate = 0.5 * float(heur_thres) / tree_size
-                raxml_params += ["-G", str(heur_rate)]            
 
         if self.config.epa_load_optmod and optmod_fname:
             if os.path.isfile(optmod_fname):
@@ -84,7 +79,7 @@ class RaxmlWrapper:
                 print "WARNING: Binary model file not found: %s" % optmod_fname
                 print "WARNING: Model parameters will be estimated by RAxML"
                 
-        self.run(job_name, raxml_params, tree_size, silent)
+        self.run(job_name, raxml_params, silent)
         
         if leave_one_test:
             stem = "leaveOneOutResults"
@@ -99,16 +94,14 @@ class RaxmlWrapper:
                     % self.make_raxml_fname("output", job_name)
             sys.exit()
 
-    def run(self, job_name, params, tree_size, silent=True):
+    def run(self, job_name, params, silent=True):
+        if self.config.raxml_model == "AUTO":
+            print "ERROR: you should have called EpacConfig.resolve_auto_settings() in your script!\n"
+            sys.exit()
+
         self.cleanup(job_name)
-        if self.config.raxml_model.upper() == "AUTO":
-            if tree_size > 500:
-                model = "GTRCAT"
-            else:
-                model = "GTRGAMMA"
-        else:
-            model = self.config.raxml_model
-        params += ["-m", model, "-n", job_name]
+        
+        params += ["-m", self.config.raxml_model, "-n", job_name]
         params += ["--no-bfgs"]
 
         if self.config.run_on_cluster:

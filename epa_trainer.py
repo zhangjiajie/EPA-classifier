@@ -53,6 +53,9 @@ class RefTreeBuilder:
         self.reftree_size = len(ids)
         self.reftree_multif = t
 
+        # IMPORTANT: select GAMMA or CAT model based on tree size!                
+        self.cfg.resolve_auto_settings(self.reftree_size)
+
         if self.cfg.debug:
             refseq_fname = self.cfg.tmp_fname("%NAME%_seq_ids.txt")
             # list of sequence ids which comprise the reference tree
@@ -148,7 +151,7 @@ class RefTreeBuilder:
 
         print "\nResolving multifurcation: \n"
         raxml_params = ["-s", self.reduced_refalign_fname, "-g", self.reftree_mfu_fname, "-F", "--no-seq-check"]
-        self.invocation_raxml_multif = self.raxml_wrapper.run(self.mfresolv_job_name, raxml_params, self.reftree_size)
+        self.invocation_raxml_multif = self.raxml_wrapper.run(self.mfresolv_job_name, raxml_params)
         if self.raxml_wrapper.result_exists(self.mfresolv_job_name):        
 #            self.raxml_wrapper.copy_result_tree(self.mfresolv_job_name, self.reftree_bfu_fname)
 #            self.raxml_wrapper.copy_optmod_params(self.mfresolv_job_name, self.optmod_fname)
@@ -158,7 +161,7 @@ class RefTreeBuilder:
             # RAxML call to optimize model parameters and write them down to the binary model file
             print "\nOptimizing model parameters: \n"
             raxml_params = ["-f", "e", "-s", self.reduced_refalign_fname, "-t", bfu_fname, "-H", "--no-seq-check"]
-            self.invocation_raxml_optmod = self.raxml_wrapper.run(self.optmod_job_name, raxml_params, self.reftree_size)
+            self.invocation_raxml_optmod = self.raxml_wrapper.run(self.optmod_job_name, raxml_params)
             if self.raxml_wrapper.result_exists(self.optmod_job_name):
                 self.raxml_wrapper.copy_result_tree(self.optmod_job_name, self.reftree_bfu_fname)
                 self.raxml_wrapper.copy_optmod_params(self.optmod_job_name, self.optmod_fname)
@@ -202,7 +205,7 @@ class RefTreeBuilder:
             fout.write(">" + "DUMMY131313" + "\n")        
             fout.write("A"*self.refalign_width + "\n")        
         
-        epa_result = self.raxml_wrapper.run_epa(self.epalbl_job_name, self.lblalign_fname, self.reftree_bfu_fname, self.reftree_size, self.optmod_fname)
+        epa_result = self.raxml_wrapper.run_epa(self.epalbl_job_name, self.lblalign_fname, self.reftree_bfu_fname, self.optmod_fname)
         self.reftree_lbl_str = epa_result.get_std_newick_tree()
         self.raxml_version = epa_result.get_raxml_version()
         self.invocation_raxml_epalbl = epa_result.get_raxml_invocation()
