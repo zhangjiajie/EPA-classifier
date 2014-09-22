@@ -10,8 +10,6 @@ try:
     from epac.config import EpacConfig
     from epac.raxml_util import RaxmlWrapper, FileUtils
     from epac.json_util import RefJsonParser, RefJsonChecker, EpaJsonParser
-    from epac.msa import muscle, hmmer
-    from epac.erlang import erlang
     from epac.taxonomy_util import Taxonomy,GGTaxonomyFile
 except ImportError, e:
     print("Some packages are missing, please re-downloand EPA-classifier")
@@ -31,7 +29,6 @@ class LeaveOneTest:
         self.refjson.validate()
         self.rate = self.refjson.get_rate()
         self.node_height = self.refjson.get_node_height()
-        self.erlang = erlang()
         self.tmp_refaln = config.tmp_fname("%NAME%.refaln")
         self.reftree_lbl_fname = config.tmp_fname("%NAME%_lbl.tre")
         self.reftree_tax_fname = config.tmp_fname("%NAME%_tax.tre")
@@ -45,142 +42,9 @@ class LeaveOneTest:
         self.mislabels = []
         self.mislabels_cnt = [0] * self.TAXONOMY_RANKS_COUNT
 
-
     def cleanup(self):
         FileUtils.remove_if_exists(self.tmp_refaln)
 
-    def get_lowest_assigned_rank_level(self, ranks):
-        rank_level = len(ranks)-1
-        while ranks[rank_level] == Taxonomy.EMPTY_RANK:
-            rank_level -= 1
-        return rank_level
-
-    def print_ranks(self, rks, confs, minlw = 0.0):
-        ss = ""
-        css = ""
-        for i in range(len(rks)):
-            conf = confs[i]
-            if conf == confs[0] and confs[0] >=0.99:
-                conf = 1.0
-            if conf >= minlw:
-                ss = ss + rks[i] + ";"
-                css = css + "{0:.3f}".format(conf) + ";"
-            else:
-                break
-        if ss == "":
-            return None
-        else:
-            return ss[:-1] + "\t" + css[:-1]
-
-    def run_epa_once(self, reftree, seq_name):
-        reftree_fname = self.cfg.tmp_fname("ref_%NAME%_" + seq_name + ".tre")
-        job_name = self.cfg.subst_name("epa_%NAME%_" + seq_name)
-
-        reftree.write(outfile=reftree_fname)
-
-        epa_result = self.raxml.run_epa(job_name, self.refalign_fname, reftree_fname, self.optmod_fname)
-        self.reftree_lbl_str = epa_result.get_std_newick_tree()        
-        placements = epa_result.get_placement()
-        
-        if len(placements) != 1:
-            print "ERROR: 1 placement expected, got: %d" % len(placements)
-            return
-
-        # update branchid-taxonomy mapping to account for possible changes in branch numbering
-        outgr = self.reftree_outgroup.copy()
-        leaf_nodes = outgr.get_leaves_by_name(seq_name)
-        if len(leaf_nodes) > 0:
-            leaf_nodes[0].delete()
-        self.restore_rooting(outgr)
-        self.label_reftree_with_ranks()
-        self.build_branch_rank_map()
-
-        ranks, lws = self.classify_seq(seq_name, placements[0])
-        self.check_tax_labels(seq_name, ranks, lws)
-        
-        if not self.cfg.debug:
-            self.raxml.cleanup(job_name)
-            FileUtils.remove_if_exists(reftree_fname)
-    
-    def restore_rooting(self, outgr):
-        self.reftree_tax = Tree(self.reftree_lbl_str)
-        outgr_leaves = outgr.get_leaf_names()
-        # check if outgroup consists of a single node - ETE considers it to be root, not leaf
-        if not outgr_leaves:
-            outgr_root = self.reftree_tax&outgr.name
-        elif len(outgr_leaves) == 1:
-            outgr_root = self.reftree_tax&outgr_leaves[0]
-        else:
-            # Even unrooted tree is "implicitely" rooted in ETE representation.
-            # If this pseudo-rooting happens to be within the outgroup, it cause problems
-            # in the get_common_ancestor() step (since common_ancestor = "root")
-            # Workaround: explicitely root the tree outside from outgroup subtree
-            for node in self.reftree_tax.iter_leaves():
-                if not node.name in outgr_leaves:
-                    tmp_root = node.up
-                    if not self.reftree_tax == tmp_root:
-                        self.reftree_tax.set_outgroup(tmp_root)
-                        break
-            
-            outgr_root = self.reftree_tax.get_common_ancestor(outgr_leaves)
-
-        # we could be so lucky that the RAxML tree is already correctly rooted :)
-        if outgr_root != self.reftree_tax:
-            self.reftree_tax.set_outgroup(outgr_root)
-
-        if self.cfg.debug:
-            #    t.show()
-            self.reftree_tax.write(outfile=self.reftree_lbl_fname, format=5)
-
-    def label_reftree_with_ranks(self):
-        """labeling self.reftree_tax"""
-        for node in self.reftree_tax.traverse("postorder"):
-            if node.is_leaf():
-                seq_ranks = self.origin_taxonomy[node.name]
-                rank_level = self.get_lowest_assigned_rank_level(seq_ranks)
-                node.add_feature("rank_level", rank_level)
-                node.add_feature("ranks", seq_ranks)
-                node.name += "__" + seq_ranks[rank_level]
-#                print node.name + " -- " + ";".join(node.ranks) + " -- " + str(node.rank_level)
-            else:
-                if len(node.children) != 2:
-                    print "FATAL ERROR: tree is not bifurcating!"
-                    sys.exit()
-                lchild = node.children[0]
-                rchild = node.children[1]
-                rank_level = min(lchild.rank_level, rchild.rank_level)
-#                if hasattr(node, "B"):
-#                    print node.B + " ---- " + str(rank_level) + " --- " + lchild.ranks[rank_level] + " --- " + rchild.ranks[rank_level]
-                while rank_level >= 0 and lchild.ranks[rank_level] != rchild.ranks[rank_level]:
-                    rank_level -= 1
-                node.add_feature("rank_level", rank_level)
-                node_ranks = [Taxonomy.EMPTY_RANK] * 7
-                if rank_level >= 0:
-                    node_ranks[0:rank_level+1] = lchild.ranks[0:rank_level+1]
-                    node.name = lchild.ranks[rank_level]
-                else:
-                    node.name = "Undefined"
-#                    print ";".join(lchild.ranks) + " -- " + ";".join(rchild.ranks) + " node_ranks: " + ";".join(node_ranks)
-                    if hasattr(node, "B") and self.cfg.verbose:
-                        print "INFO: no taxonomic annotation for branch %s (reason: children belong to different kingdoms)" % node.B
-
-                node.add_feature("ranks", node_ranks)
-
-        if self.cfg.debug:
-            #    t.show()
-            self.reftree_tax.write(outfile=self.reftree_tax_fname, format=3)
-
-    def build_branch_rank_map(self):
-        self.bid_taxonomy_map = {}
-        for node in self.reftree_tax.traverse("postorder"):
-            if not node.is_root() and hasattr(node, "B"):                
-                parent = node.up                
-                self.bid_taxonomy_map[node.B] = parent.ranks
-#                print "%s => %s" % (node.B, parent.ranks)
-#            elif self.cfg.verbose:
-#                print "INFO: EPA branch label missing, mapping to taxon skipped (%s)" % node.name
-
-    
     def classify_seq(self, placement):
         edges = placement["p"]
         if len(edges) > 0:
@@ -425,32 +289,15 @@ class LeaveOneTest:
 
         print "Total sequences: %d\n" % self.reftree_size
 
-#        self.family_stats_fname = "%s_family.stats" % self.output_fname
-#        self.cnt_family = {}
-        
-        if raxml_mode:
-            self.refjson.get_raxml_readable_tree(self.reftree_fname)
-            self.bid_taxonomy_map = self.orig_bid_taxonomy_map
-            seq_count = self.run_raxml_leave_test()
-            if not self.cfg.debug:
-                FileUtils.remove_if_exists(self.reftree_fname)
-        else:
-            self.reftree_outgroup = self.refjson.get_outgroup()
-            seq_count = 0
-            for node in reftree.iter_leaves(): #reftree.get_leaves_by_name('r_EU338490|S002165559'):
-                tmp_tree = reftree.copy() 
-                leave_node = tmp_tree.get_leaves_by_name(node.name)[0]
-                leave_node.delete()
-                self.run_epa_once(tmp_tree, node.name)
-                seq_count += 1
-    #            if seq_count > 30:            
-    #                break
+        self.refjson.get_raxml_readable_tree(self.reftree_fname)
+        self.bid_taxonomy_map = self.orig_bid_taxonomy_map
+        seq_count = self.run_raxml_leave_test()
+        if not self.cfg.debug:
+            FileUtils.remove_if_exists(self.reftree_fname)
 
         self.sort_mislabels()
         self.write_mislabels()
         print "\nPercentage of mislabeled sequences: %.2f %%" % (float(self.mislabels_cnt[self.TAXONOMY_RANKS_COUNT-1]) / seq_count * 100)
-
-#        self.write_sorted_map(self.family_stats_fname, self.cnt_family)
 
         if not self.cfg.debug:
             FileUtils.remove_if_exists(self.optmod_fname)
@@ -474,7 +321,8 @@ def print_options():
     print("    -v                             Print the results on screen.\n")
 
 def parse_args():
-    parser = ArgumentParser(description="Find putative mislabeled/misplaced sequences in a taxonomy.")
+    parser = ArgumentParser(description="Find putative mislabeled/misplaced sequences in a taxonomy.",
+    epilog="Example: python find_mislabels.py -r example/reference.json -t 0.5 -v")
     parser.add_argument("-r", dest="ref_fname",
             help="""Specify the reference alignment and taxonomy in json format.""")
     parser.add_argument("-t", dest="min_lhw", type=float, default=0.,
@@ -532,7 +380,7 @@ def check_args(args):
         args.method == "1"
         
 def print_run_info(config, args):
-    print("EPA-classifier running with the following parameters:")
+    print("Mislabels search is running with the following parameters:")
     print(" Reference:......................%s" % args.ref_fname)
     if args.jplace_fname:
         print(" EPA jplace file:................%s" % args.jplace_fname)

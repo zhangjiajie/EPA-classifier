@@ -98,6 +98,12 @@ class EpacConfig:
             self.epa_heur_rate = 0.5 * float(EpacConfig.EPA_HEUR_THRES) / tree_size
         else:
             self.epa_use_heuristic == "FALSE"
+
+    def resolve_relative_path(self, rpath):
+        if rpath.startswith("/"):
+            return rpath
+        else:
+            return self.epac_home + rpath
         
     def check_raxml(self):
         self.raxml_exec_full = self.raxml_home + self.raxml_exec
@@ -121,7 +127,7 @@ class EpacConfig:
         parser = DefaultedConfigParser() #ConfigParser.SafeConfigParser()
         parser.read(config_fname)
         
-        self.raxml_home = parser.get_param("raxml", "raxml_home", str, self.raxml_home) + "/"
+        self.raxml_home = self.resolve_relative_path(parser.get_param("raxml", "raxml_home", str, self.raxml_home) + "/")
         self.raxml_exec = parser.get_param("raxml", "raxml_exec", str, self.raxml_exec)
         self.raxml_remote_host = parser.get_param("raxml", "raxml_remote_host", str, self.raxml_remote_host)
 
@@ -132,8 +138,8 @@ class EpacConfig:
         self.epa_heur_rate = parser.get_param("raxml", "epa_heur_rate", float, self.epa_heur_rate)
         self.epa_load_optmod = parser.get_param("raxml", "epa_load_optmod", bool, self.epa_load_optmod)
 
-        self.hmmer_home = parser.get_param("hmmer", "hmmer_home", str, self.hmmer_home)
-        self.muscle_home = parser.get_param("muscle", "muscle_home", str, self.muscle_home)
+        self.hmmer_home = self.resolve_relative_path(parser.get_param("hmmer", "hmmer_home", str, self.hmmer_home))
+        self.muscle_home = self.resolve_relative_path(parser.get_param("muscle", "muscle_home", str, self.muscle_home))
         
         self.run_on_cluster = parser.get_param("cluster", "run_on_cluster", bool, self.run_on_cluster)
         self.cluster_epac_home = parser.get_param("cluster", "cluster_epac_home", str, self.cluster_epac_home) + "/"
