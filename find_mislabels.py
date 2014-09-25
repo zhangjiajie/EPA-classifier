@@ -360,17 +360,14 @@ def check_args(args):
     
     if not os.path.exists(args.ref_fname):
         print("Input reference json file does not exists: %s" % args.ref_fname)
-        print_options()
         sys.exit()
     
     if not os.path.exists(args.output_dir):
         print("Output directory does not exists: %s" % args.output_dir)
-        print_options()
         sys.exit()
 
     if args.jplace_fname and not os.path.exists(args.jplace_fname):
         print("EPA placement file does not exists: %s" % args.jplace_fname)
-        print_options()
         sys.exit()
 
     if args.min_lhw < 0 or args.min_lhw > 1.0:

@@ -115,6 +115,9 @@ class GGTaxonomyFile(Taxonomy):
     def map(self):
         return self.seq_ranks_map
 
+    def remove_seq(self, seqid):
+        del self.seq_ranks_map[seqid]
+
     def make_binomial_name(self, ranks):
         if ranks[6] != Taxonomy.EMPTY_RANK:
             genus_name = ranks[5][3:]
@@ -154,7 +157,7 @@ class GGTaxonomyFile(Taxonomy):
 
         fin.close()
 
-    def check_for_duplicates(self, correct=False):
+    def check_for_duplicates(self, autofix=False):
         parent_map = {}
         dups = []
         for sid, ranks in self.seq_ranks_map.iteritems():
@@ -167,9 +170,13 @@ class GGTaxonomyFile(Taxonomy):
                 else:
                     old_sid = parent_map[ranks[i]]
                     if self.get_seq_ranks(old_sid)[i-1] != parent:
-                        dups.append((sid, self.lineage_str(sid), old_sid, self.lineage_str(old_sid)))
-                        if correct:
-                            self.seq_ranks_map[sid][i] = ranks[i] + parent
+                        if autofix:
+                            orig_name = self.lineage_str(sid)
+                            self.seq_ranks_map[sid][i] = ranks[i] + "_" + parent
+                            dup_rec = (old_sid, self.lineage_str(old_sid), sid, orig_name, self.lineage_str(sid))
+                        else:
+							dup_rec = (old_sid, self.lineage_str(old_sid), sid, self.lineage_str(sid))
+                        dups.append(dup_rec)
 
         return dups
         
