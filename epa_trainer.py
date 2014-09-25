@@ -39,8 +39,9 @@ class RefTreeBuilder:
         c = self.cfg
         
         # make sure we don't have duplicate rank names
-        dups = self.taxonomy.check_for_duplicates()
-        if len(dups) > 0:
+        correct = True
+        dups = self.taxonomy.check_for_duplicates(correct)
+        if len(dups) > 0 and not correct:
           print "Duplicate rank names found:"
           for dup in dups:
             print "%s\t%s\n%s\t%s\n" % dup

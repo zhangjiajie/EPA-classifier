@@ -154,7 +154,7 @@ class GGTaxonomyFile(Taxonomy):
 
         fin.close()
 
-    def check_for_duplicates(self):
+    def check_for_duplicates(self, correct=False):
         parent_map = {}
         dups = []
         for sid, ranks in self.seq_ranks_map.iteritems():
@@ -167,7 +167,9 @@ class GGTaxonomyFile(Taxonomy):
                 else:
                     old_sid = parent_map[ranks[i]]
                     if self.get_seq_ranks(old_sid)[i-1] != parent:
-                       dups.append((sid, self.lineage_str(sid), old_sid, self.lineage_str(old_sid)))
+                        dups.append((sid, self.lineage_str(sid), old_sid, self.lineage_str(old_sid)))
+                        if correct:
+                            self.seq_ranks_map[sid][i] = ranks[i] + parent
 
         return dups
         

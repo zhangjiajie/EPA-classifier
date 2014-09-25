@@ -53,7 +53,9 @@ class RaxmlWrapper:
     def reduce_alignment(self, align_fname, job_name="reduce"):
         reduced_fname = align_fname + ".reduced"
         FileUtils.remove_if_exists(reduced_fname)
-        self.run(job_name, ["-f", "c", "-s", align_fname])
+        raxml_params = ["-f", "c", "-s", align_fname]
+        raxml_params += ["--no-dup-check"]
+        self.run(job_name, raxml_params)
         self.cleanup(job_name)
         if os.path.isfile(reduced_fname):
             return reduced_fname
