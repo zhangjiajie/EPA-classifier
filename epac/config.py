@@ -164,6 +164,7 @@ class EpacTrainerConfig(EpacConfig):
         self.align_fname = args.align_fname
         self.no_hmmer = args.no_hmmer
         self.dup_rank_names  = args.dup_rank_names
+        self.wrong_rank_count  = args.wrong_rank_count
         EpacConfig.__init__(self, args)
         
     def set_defaults(self):

@@ -31,31 +31,60 @@ class RefTreeBuilder:
         self.reftree_tax_fname = self.cfg.tmp_fname("%NAME%_tax.tre")
         self.brmap_fname = self.cfg.tmp_fname("%NAME%_map.txt")
 
-    def build_multif_tree(self):
-        c = self.cfg
-        
+    def validate_taxonomy(self):
         # make sure we don't have duplicate rank names
-        autofix = c.dup_rank_names == "autofix"
+        action = self.cfg.dup_rank_names
+        autofix = action == "autofix"
         dups = self.taxonomy.check_for_duplicates(autofix)
         if len(dups) > 0:
-            if c.dup_rank_names == "autofix":
-                print "WARNING: %d duplicate rank names found and were renamed as follows:\n" % len(dups)
+            if action == "autofix":
+                print "WARNING: %d sequences with duplicate rank names found and were renamed as follows:\n" % len(dups)
                 for dup in dups:
                     print "Original:    %s\t%s"   %  (dup[0], dup[1])
                     print "Duplicate:   %s\t%s"   %  (dup[2], dup[3])
                     print "Renamed to:  %s\t%s\n" %  (dup[2], dup[4])
-            elif c.dup_rank_names == "skip":
+            elif action == "skip":
                 print "WARNING: Following %d sequences with duplicate rank names were skipped:\n" % len(dups)
                 for dup in dups:
                     self.taxonomy.remove_seq(dup[2])
                     print "%s\t%s\n" % (dup[2], dup[3])
             else:  # abort
-                print "ERROR: %d duplicate rank names found:\n" % len(dups)
+                print "ERROR: %d sequences with duplicate rank names found:\n" % len(dups)
                 for dup in dups:
                     print "%s\t%s\n%s\t%s\n" % dup
                 print "Please fix (rename) them and run the pipeline again (or use -dup-rank-names autofix option)" 
                 sys.exit()
+        
+        # make sure we don't taxonomy "irregularities" (more than 7 ranks or missing ranks in the middle)
+        action = self.cfg.wrong_rank_count
+        autofix = action == "autofix"
+        errs = self.taxonomy.check_for_disbalance(autofix)
+        if len(errs) > 0:
+            if action == "autofix":
+                print "WARNING: %d sequences with invalid annotation (missing/redundant ranks) found and were fixed as follows:\n" % len(errs)
+                for err in errs:
+                    print "Original:   %s\t%s"   % (err[0], err[1])
+                    print "Fixed as:   %s\t%s\n" % (err[0], err[2])
+            elif action == "skip":
+                print "WARNING: Following %d sequences with invalid annotation (missing/redundant ranks) were skipped:\n" % len(errs)
+                for err in errs:
+                    self.taxonomy.remove_seq(err[0])
+                    print "%s\t%s" % err
+            else:  # abort
+                print "ERROR: %d sequences with invalid annotation (missing/redundant ranks) found:\n" % len(errs)
+                for err in errs:
+                    print "%s\t%s" % err
+                print "\nPlease fix them manually (add/remove ranks) and run the pipeline again (or use -wrong-rank-count autofix option)"
+                print "NOTE: Only standard 7-level taxonomies are supported at the moment. Although missing trailing ranks (e.g. species) are allowed,"
+                print "missing intermediate ranks (e.g. family) or sublevels (e.g. suborder) are not!\n"
+                sys.exit()
+                
+        # final touch - add prefixes, remove spaces etc. 
+        self.taxonomy.normalize_rank_names()
 
+    def build_multif_tree(self):
+        c = self.cfg
+        
         tb = TaxTreeBuilder(c, self.taxonomy)
         (t, ids) = tb.build(c.reftree_min_rank, c.reftree_max_seqs_per_leaf, c.reftree_clades_to_include, c.reftree_clades_to_ignore)
         self.reftree_ids = frozenset(ids)
@@ -441,9 +470,9 @@ class RefTreeBuilder:
 
     # top-level function to build a reference tree    
     def build_ref_tree(self):
-        print "\n=> Building a multifurcating tree from taxonomy: " + self.cfg.taxonomy_fname + "...\n"
+        print "\n=> Building a multifurcating tree from taxonomy: %s (%d seqs)...\n" % (self.cfg.taxonomy_fname, self.taxonomy.seq_count())
+        self.validate_taxonomy()
         self.build_multif_tree()
-#        sys.exit()        
         print "\n==> Building the reference alignment " + "...\n"
         self.export_ref_alignment()
         self.export_ref_taxonomy()
@@ -498,9 +527,13 @@ information needed for taxonomic placement of query sequences.""")
     parser.add_argument("-dup-rank-names", dest="dup_rank_names", choices=["abort", "skip", "autofix"],
             default="autofix", help="""Action to be performed if different ranks with same name are found: 
             abort       report duplicates and exit
-            skip        skip the corresponding taxa (exlude from reference)
+            skip        skip the corresponding sequences (exlude from reference)
             autofix	make name unique by concatenating it with the parent rank's name""")
-
+    parser.add_argument("-wrong-rank-count", dest="wrong_rank_count", choices=["abort", "skip", "autofix"],
+            default="abort", help="""Action to be performed if lineage has less (more) than 7 ranks
+            abort       report duplicates and exit
+            skip        skip the corresponding sequences (exlude from reference)
+            autofix	try to guess wich ranks should be added or removed (use with caution!)""")
     
     if len(sys.argv) < 4:
         parser.print_help()

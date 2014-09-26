@@ -119,18 +119,26 @@ class GGTaxonomyFile(Taxonomy):
         del self.seq_ranks_map[seqid]
 
     def make_binomial_name(self, ranks):
-        if ranks[6] != Taxonomy.EMPTY_RANK:
-            genus_name = ranks[5][3:]
-            sp_name = ranks[6][3:]
+        last_rank = len(ranks)-1
+        if ranks[last_rank] != Taxonomy.EMPTY_RANK:
+            genus_name = ranks[last_rank-1][3:]
+            sp_name = ranks[last_rank][3:]
+            prefix = ranks[last_rank][:3]
             if not sp_name.startswith(genus_name):
-                ranks[6] = self.rank_placeholders[6] + genus_name + "_" + sp_name
+                ranks[last_rank] = prefix + genus_name + "_" + sp_name
 
     def normalize_rank_name(self, rank, rank_name):
         rank_name = rank_name.replace(" ", "_").replace("(", "").replace(")", "")
-        rank_prefix = self.rank_placeholders[rank]
+        rank_prefix = self.rank_placeholders[rank] if rank < 7 else ""
         if not rank_name.startswith(rank_prefix):
             rank_name = rank_prefix + rank_name
         return rank_name
+
+    def normalize_rank_names(self):
+        for sid, ranks in self.seq_ranks_map.iteritems():
+            for i in range(1, len(ranks)):
+                ranks[i] = self.normalize_rank_name(i, ranks[i])
+            self.make_binomial_name(ranks);
 
     def load_taxonomy(self):
         print "Loading the taxonomy file..."
@@ -142,7 +150,7 @@ class GGTaxonomyFile(Taxonomy):
             ranks_str = toks[1]
             ranks = ranks_str.split(";")
             for i in range(len(ranks)):
-                rank_name = self.normalize_rank_name(i, ranks[i].strip())
+                rank_name = ranks[i].strip()
                 if rank_name in GGTaxonomyFile.rank_placeholders:
                     rank_name = Taxonomy.EMPTY_RANK
                 ranks[i] = rank_name
@@ -150,8 +158,6 @@ class GGTaxonomyFile(Taxonomy):
             if len(ranks) < 7:
                 ranks += [Taxonomy.EMPTY_RANK] * (7 - len(ranks))
                 print "WARNING: sequence " + sid + " has incomplete taxonomic annotation. Missing ranks were considered empty (%s)" % Taxonomy.EMPTY_RANK 
-
-            self.make_binomial_name(ranks);
 
             self.seq_ranks_map[sid] = ranks     
 
@@ -179,6 +185,54 @@ class GGTaxonomyFile(Taxonomy):
                         dups.append(dup_rec)
 
         return dups
+        
+    def check_for_disbalance(self, autofix=False):
+        # the next block finds "orphan" ranks - could be used to decide which ranks to drop (not used now)
+        if 0:
+            child_map = {}
+            for sid, ranks in self.seq_ranks_map.iteritems():
+                for i in range(1, len(ranks)):
+                    parent = "%d_%s" % (i-1, ranks[i-1])
+                    if parent not in child_map:
+                        child_map[parent] = set([ranks[i]])
+                    else:
+                        child_map[parent].add(ranks[i])
+        
+        errs = []
+        for sid, ranks in self.seq_ranks_map.iteritems():
+            if len(ranks) > 7:
+                if autofix:
+                    orig_name = self.lineage_str(sid)
+
+                    dropq = []
+                    keepq = []
+                    restq = []
+                    for i in range(1, len(ranks)):
+                        # drop Subclass and Suborder, preserve Order and Family (based on common suffixes)
+                        if ranks[i].endswith("dae") or ranks[i].endswith("neae"):
+                            dropq += [i]
+                        elif ranks[i].endswith("ceae") or ranks[i].endswith("ales"):
+                            keepq += [i]
+                        else:
+                            restq += [i]
+
+                    to_remove = dropq + restq + keepq
+                    to_remove = to_remove[:len(ranks)-7]
+                    
+                    new_ranks = []
+                    for i in range(len(ranks)):
+                        if i not in to_remove:
+                            new_ranks += [ranks[i]]
+                            
+                    self.seq_ranks_map[sid] = new_ranks
+                    
+                    err_rec = (sid, orig_name, self.lineage_str(sid))
+                else:    
+                    err_rec = (sid, self.lineage_str(sid))
+                errs.append(err_rec)
+
+        return errs
+        
         
 class TaxTreeBuilder:
     def __init__(self, config, taxonomy):
