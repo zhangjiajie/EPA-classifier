@@ -167,8 +167,8 @@ class GGTaxonomyFile(Taxonomy):
         parent_map = {}
         dups = []
         old_fixed = {}
+        old_ranks = {}
         for sid, ranks in self.seq_ranks_map.iteritems():
-            changed_old_sid = None
             for i in range(1, len(ranks)):
                 if ranks[i] == Taxonomy.EMPTY_RANK:
                     break                
@@ -179,21 +179,26 @@ class GGTaxonomyFile(Taxonomy):
                     old_sid = parent_map[ranks[i]]
                     if self.get_seq_ranks(old_sid)[i-1] != parent:
                         if autofix:
-                            if old_sid not in old_fixed:
-                                old_fixed[old_sid] = self.lineage_str(old_sid)
-                                changed_old_sid = old_sid
-
                             orig_name = self.lineage_str(sid)
                             orig_old_name = self.lineage_str(old_sid)
+
+                            if old_sid not in old_fixed:
+                                old_fixed[old_sid] = self.lineage_str(old_sid)
+                                old_ranks[old_sid] = set([])
+                                
+                            if i not in old_ranks[old_sid]:
+                                self.seq_ranks_map[old_sid][i] += "_" + self.seq_ranks_map[old_sid][i-1]
+                                old_ranks[old_sid].add(i)
+
                             self.seq_ranks_map[sid][i] = ranks[i] + "_" + parent
-                            self.seq_ranks_map[old_sid][i] += "_" + self.seq_ranks_map[old_sid][i-1]
                             dup_rec = (old_sid, orig_old_name, sid, orig_name, self.lineage_str(sid))
                         else:
 							dup_rec = (old_sid, self.lineage_str(old_sid), sid, self.lineage_str(sid))
                         dups.append(dup_rec)
                         
-            if autofix and changed_old_sid:
-                dup_rec = (changed_old_sid, old_fixed[changed_old_sid], changed_old_sid, old_fixed[changed_old_sid], self.lineage_str(changed_old_sid))
+        if autofix:
+            for sid, orig_name in old_fixed.iteritems():
+                dup_rec = (sid, orig_name, sid, orig_name, self.lineage_str(sid))
                 dups.append(dup_rec)
 
         return dups
