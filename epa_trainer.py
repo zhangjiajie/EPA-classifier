@@ -180,13 +180,6 @@ class RefTreeBuilder:
         print "\nReducing the alignment: \n"
         self.reduced_refalign_fname = self.raxml_wrapper.reduce_alignment(self.refalign_fname)
         
-        # hack: use CAT for large trees, since GAMMA has numerical problems with them
-        if self.reftree_size > 10000 and self.cfg.raxml_model == "GTRGAMMA":
-            orig_raxml_model = self.cfg.raxml_model
-            self.cfg.raxml_model = "GTRCAT"
-        else:
-            orig_raxml_model = ""
-
         print "\nResolving multifurcation: \n"
         raxml_params = ["-s", self.reduced_refalign_fname, "-g", self.reftree_mfu_fname, "-F", "--no-seq-check"]
         self.invocation_raxml_multif = self.raxml_wrapper.run(self.mfresolv_job_name, raxml_params)
@@ -209,10 +202,6 @@ class RefTreeBuilder:
                 print "RAxML run failed (model optimization), please examine the log for details: %s" \
                         % self.raxml_wrapper.make_raxml_fname("output", self.optmod_job_name)
                 sys.exit()  
-
-            # restore the original model (s. above)
-            if orig_raxml_model:
-                self.cfg.raxml_model = orig_raxml_model
 
             if not self.cfg.debug:
                 self.raxml_wrapper.cleanup(self.mfresolv_job_name)
