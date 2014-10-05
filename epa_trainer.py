@@ -191,7 +191,9 @@ class RefTreeBuilder:
 
             # RAxML call to optimize model parameters and write them down to the binary model file
             print "\nOptimizing model parameters: \n"
-            raxml_params = ["-f", "e", "-s", self.reduced_refalign_fname, "-t", bfu_fname, "-H", "--no-seq-check"]
+            raxml_params = ["-f", "e", "-s", self.reduced_refalign_fname, "-t", bfu_fname, "--no-seq-check"]
+            if self.cfg.raxml_model == "GTRCAT":
+                raxml_params +=  ["-H"]
             self.invocation_raxml_optmod = self.raxml_wrapper.run(self.optmod_job_name, raxml_params)
             if self.raxml_wrapper.result_exists(self.optmod_job_name):
                 self.raxml_wrapper.copy_result_tree(self.optmod_job_name, self.reftree_bfu_fname)
@@ -481,9 +483,9 @@ class RefTreeBuilder:
         self.calc_node_heights()
         
         if self.cfg.verbose:
-			print "\n=========> Checking branch labels ...\n"
-			print "shared rank names before training: " + repr(self.taxonomy.get_common_ranks())
-			print "shared rank names after  training: " + repr(self.mono_index())
+            print "\n=========> Checking branch labels ...\n"
+            print "shared rank names before training: " + repr(self.taxonomy.get_common_ranks())
+            print "shared rank names after  training: " + repr(self.mono_index())
         
         print "\n=========> Saving the reference JSON file" + "...\n"
         self.write_json()
@@ -517,12 +519,12 @@ information needed for taxonomic placement of query sequences.""")
             default="autofix", help="""Action to be performed if different ranks with same name are found: 
             abort       report duplicates and exit
             skip        skip the corresponding sequences (exlude from reference)
-            autofix	make name unique by concatenating it with the parent rank's name""")
+            autofix     make name unique by concatenating it with the parent rank's name""")
     parser.add_argument("-wrong-rank-count", dest="wrong_rank_count", choices=["abort", "skip", "autofix"],
             default="abort", help="""Action to be performed if lineage has less (more) than 7 ranks
             abort       report duplicates and exit
             skip        skip the corresponding sequences (exlude from reference)
-            autofix	try to guess wich ranks should be added or removed (use with caution!)""")
+            autofix     try to guess wich ranks should be added or removed (use with caution!)""")
     
     if len(sys.argv) < 4:
         parser.print_help()

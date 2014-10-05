@@ -62,39 +62,62 @@ class RaxmlWrapper:
         else:
             return align_fname
 
-    def run_epa(self, job_name, align_fname, reftree_fname, optmod_fname="", silent=True, leave_one_test=False):
+    def run_epa(self, job_name, align_fname, reftree_fname, optmod_fname="", silent=True, mode="epa", subtree_fname=None):
         raxml_params = ["-s", align_fname, "-t", reftree_fname]
         # assume that by the time we call EPA reference has been cleaned already (e.g. with previous reduce_alignment call)
         raxml_params += ["--no-seq-check"]
-        if leave_one_test:
+        if mode == "l1o_seq":
             raxml_params += ["-f", "O"]
-        else:
+            result_file_stem = "leaveOneOutResults"
+        elif mode == "l1o_subtree":
+            raxml_params += ["-f", "P", "-z", subtree_fname]
+            result_file_stem = "subtreePlacement"
+        elif mode == "epa":
             raxml_params += ["-f", "v"]
+            result_file_stem = "portableTree"
+        else:
+            print "ERROR: Invalid RAxML-EPA running mode: %s" % mode
+            sys.exit()
 
         if self.config.epa_use_heuristic in ["TRUE", "YES", "1"]:
             raxml_params += ["-G", str(self.config.epa_heur_rate)]            
 
         if self.config.epa_load_optmod and optmod_fname:
             if os.path.isfile(optmod_fname):
-                raxml_params += ["-R", optmod_fname, "-H"]
+                raxml_params += ["-R", optmod_fname]
+                if self.config.raxml_model == "GTRCAT":
+                    raxml_params +=  ["-H"]
             else:
                 print "WARNING: Binary model file not found: %s" % optmod_fname
                 print "WARNING: Model parameters will be estimated by RAxML"
                 
         self.run(job_name, raxml_params, silent)
         
-        if leave_one_test:
-            stem = "leaveOneOutResults"
+        jp = None
+        failed = False
+        if mode == "l1o_subtree":
+            jp = []
+            i = 0
+            while True:
+                jp_fname = self.make_raxml_fname(result_file_stem, job_name) + ".%d.jplace" % (i+1)
+                if not os.path.isfile(jp_fname):
+                    break
+                jp.append(EpaJsonParser(jp_fname))
+                i += 1
+            failed = i == 0    
         else:
-            stem = "portableTree"
-        jp_fname = self.make_raxml_fname(stem, job_name) + ".jplace"
-        if os.path.isfile(jp_fname):
-            jp = EpaJsonParser(jp_fname)
-            return jp
-        else:
+            jp_fname = self.make_raxml_fname(result_file_stem, job_name) + ".jplace"
+            if os.path.isfile(jp_fname):
+                jp = EpaJsonParser(jp_fname)
+            else:
+                failed = True
+            
+        if failed:
             print "RAxML EPA run failed, please examine the log for details:\n %s" \
                     % self.make_raxml_fname("output", job_name)
             sys.exit()
+        else:        
+            return jp
 
     def run(self, job_name, params, silent=True):
         if self.config.raxml_model == "AUTO":
