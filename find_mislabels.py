@@ -11,6 +11,7 @@ try:
     from epac.raxml_util import RaxmlWrapper, FileUtils
     from epac.json_util import RefJsonParser, RefJsonChecker, EpaJsonParser
     from epac.taxonomy_util import Taxonomy,GGTaxonomyFile
+    from epac.classify_util import TaxClassifyHelper
 except ImportError, e:
     print("Some packages are missing, please re-downloand EPA-classifier")
     print e
@@ -20,6 +21,18 @@ except ImportError, e:
 class LeaveOneTest:
     def __init__(self, config, args):
         self.cfg = config
+        self.method = args.method
+        self.minlw = args.min_lhw
+        self.jplace_fname = args.jplace_fname
+        self.ranktest = args.ranktest
+        self.output_fname = args.output_dir + "/" + args.output_name
+
+        self.tmp_refaln = config.tmp_fname("%NAME%.refaln")
+        self.reftree_lbl_fname = config.tmp_fname("%NAME%_lbl.tre")
+        self.reftree_tax_fname = config.tmp_fname("%NAME%_tax.tre")
+        self.optmod_fname = self.cfg.tmp_fname("%NAME%.opt")
+        self.reftree_fname = self.cfg.tmp_fname("ref_%NAME%.tre")
+
         try:
             self.refjson = RefJsonParser(config.refjson_fname)
         except ValueError:
@@ -29,17 +42,22 @@ class LeaveOneTest:
         self.refjson.validate()
         self.rate = self.refjson.get_rate()
         self.node_height = self.refjson.get_node_height()
-        self.tmp_refaln = config.tmp_fname("%NAME%.refaln")
-        self.reftree_lbl_fname = config.tmp_fname("%NAME%_lbl.tre")
-        self.reftree_tax_fname = config.tmp_fname("%NAME%_tax.tre")
-        self.seqs = None
-        self.TAXONOMY_RANKS_COUNT = 7
+        self.origin_taxonomy = self.refjson.get_origin_taxonomy()
+        self.bid_taxonomy_map = self.refjson.get_bid_tanomomy_map()
 
-        self.output_fname = args.output_dir + "/" + args.output_name
-        self.method = args.method
-        self.minlw = args.min_lhw
-        self.jplace_fname = args.jplace_fname
-        self.ranktest = args.ranktest
+        reftree_str = self.refjson.get_raxml_readable_tree()
+        reftree = Tree(reftree_str)
+        self.reftree_size = len(reftree.get_leaves())
+
+        # IMPORTANT: set EPA heuristic rate based on tree size!                
+        self.cfg.resolve_auto_settings(self.reftree_size)
+        # If we're loading the pre-optimized model, we MUST set the same rate het. mode as in the ref file        
+        if self.cfg.epa_load_optmod:
+            self.cfg.raxml_model = self.refjson.get_ratehet_model()
+        
+        self.classify_helper = TaxClassifyHelper(self.cfg, self.bid_taxonomy_map)
+
+        self.TAXONOMY_RANKS_COUNT = 7
         self.mislabels = []
         self.mislabels_cnt = [0] * self.TAXONOMY_RANKS_COUNT
         self.rank_mislabels = []
@@ -51,11 +69,7 @@ class LeaveOneTest:
     def classify_seq(self, placement):
         edges = placement["p"]
         if len(edges) > 0:
-            if self.method == "1":
-                ranks, lws = self.assign_taxonomy_maxsum(edges, self.minlw)
-            else:
-                ranks, lws = self.assign_taxonomy(edges)
-            return ranks, lws
+            return self.classify_helper.classify_seq(edges, self.method, self.minlw)
         else:
             print "ERROR: no placements! something is definitely wrong!"
 
@@ -191,115 +205,6 @@ class LeaveOneTest:
             for key, value in sorted_map:
                 fout.write("%s: %d %f\n" % (key, value, float(value) / total))
         
-   
-    def assign_taxonomy(self, edges):
-        #Calculate the sum of likelihood weight for each rank
-        taxonmy_sumlw_map = {}
-        for edge in edges:
-            edge_nr = str(edge[0])
-            lw = edge[2]
-            taxonomy = self.bid_taxonomy_map[edge_nr]
-            for rank in taxonomy:
-                if rank == "-":
-                    taxonmy_sumlw_map[rank] = -1
-                elif rank in taxonmy_sumlw_map:
-                    oldlw = taxonmy_sumlw_map[rank]
-                    taxonmy_sumlw_map[rank] = oldlw + lw
-                else:
-                    taxonmy_sumlw_map[rank] = lw
-        
-        #Assignment using the max likelihood placement
-        ml_edge = edges[0]
-        edge_nr = str(ml_edge[0])
-        maxlw = ml_edge[2]
-        ml_ranks = self.bid_taxonomy_map[edge_nr]
-        ml_ranks_copy = []
-        for rk in ml_ranks:
-            ml_ranks_copy.append(rk)
-        lws = []
-        cnt = 0
-        for rank in ml_ranks:
-            lw = taxonmy_sumlw_map[rank]
-            if lw > 1.0:
-                lw = 1.0
-            lws.append(lw)
-            if rank == "-" and cnt > 0 :                
-                for edge in edges[1:]:
-                    edge_nr = str(edge[0])
-                    taxonomy = self.bid_taxonomy_map[edge_nr]
-                    newrank = taxonomy[cnt]
-                    newlw = taxonmy_sumlw_map[newrank]
-                    higherrank_old = ml_ranks[cnt -1]
-                    higherrank_new = taxonomy[cnt -1]
-                    if higherrank_old == higherrank_new and newrank!="-":
-                        ml_ranks_copy[cnt] = newrank
-                        lws[cnt] = newlw
-            cnt = cnt + 1
-            
-        return ml_ranks_copy, lws
-
-    def assign_taxonomy_maxsum(self, edges, minlw = 0.):
-        """this function sums up all LH-weights for each rank and takes the rank with the max. sum """
-        # in EPA result, each placement(=branch) has a "weight"
-        # since we are interested in taxonomic placement, we do not care about branch vs. branch comparisons,
-        # but only consider rank vs. rank (e. g. G1 S1 vs. G1 S2 vs. G1)
-        # Thus we accumulate weights for each rank, there are to measures:
-        # "own" weight  = sum of weight of all placements EXACTLY to this rank (e.g. for G1: G1 only)
-        # "total" rank  = own rank + own rank of all children (for G1: G1 or G1 S1 or G1 S2)
-        rw_own = {}
-        rw_total = {}
-        rb = {}
-        
-        for edge in edges:
-            br_id = str(edge[0])
-            lweight = edge[2]
-            lowest_rank = None
-
-            if lweight == 0.:
-                continue
-            
-            # accumulate weight for the current sequence                
-            ranks = self.bid_taxonomy_map[br_id]
-            for i in range(len(ranks)):
-                rank = ranks[i]
-                if rank != Taxonomy.EMPTY_RANK:
-                    rw_total[rank] = rw_total.get(rank, 0) + lweight
-                    lowest_rank = rank
-                    if not rank in rb:
-                        rb[rank] = br_id
-                else:
-                    break
-
-            if lowest_rank:
-                rw_own[lowest_rank] = rw_own.get(lowest_rank, 0) + lweight
-                rb[lowest_rank] = br_id
-            elif self.cfg.verbose:
-                print "WARNING: no annotation for branch ", br_id
-            
-
-        # we assign the sequence to a rank, which has the max "own" weight AND 
-        # whose "total" weight is greater than a confidence threshold
-        max_rw = 0.
-        s_r = None
-        for r in rw_own.iterkeys():
-            if rw_own[r] > max_rw and rw_total[r] >= minlw:
-                s_r = r
-                max_rw = rw_own[r] 
-        if not s_r:
-            s_r = max(rw_total.iterkeys(), key=(lambda key: rw_total[key]))
-
-        a_br_id = rb[s_r]
-        a_ranks = self.bid_taxonomy_map[a_br_id]
-
-        # "total" weight is considered as confidence value for now
-        a_conf = [0.] * len(a_ranks)
-        for i in range(len(a_conf)):
-            rank = a_ranks[i]
-            if rank != Taxonomy.EMPTY_RANK:
-                a_conf[i] = rw_total[rank]
-
-        return a_ranks, a_conf
-
     def run_leave_seq_out_test(self):
         job_name = self.cfg.subst_name("epa_%NAME%")
         if self.jplace_fname:
@@ -376,42 +281,24 @@ class LeaveOneTest:
 
     def run_test(self, raxml_mode = True):
         self.raxml = RaxmlWrapper(config)
-        self.refalign_fname = self.refjson.get_alignment(fout = self.tmp_refaln)        
-        self.optmod_fname = self.cfg.tmp_fname("%NAME%.opt")
-        self.refjson.get_binary_model(self.optmod_fname)
-        self.origin_taxonomy = self.refjson.get_origin_taxonomy()
-        self.orig_bid_taxonomy_map = self.refjson.get_bid_tanomomy_map()
-        self.reftree_fname = self.cfg.tmp_fname("ref_%NAME%.tre")
-
-        reftree_str = self.refjson.get_raxml_readable_tree()
-        reftree = Tree(reftree_str)
-
-        self.reftree_size = len(reftree.get_leaves())
-
-        # IMPORTANT: set EPA heuristic rate based on tree size!                
-        self.cfg.resolve_auto_settings(self.reftree_size)
-        # If we're loading the pre-optimized model, we MUST set the same rate het. mode as in the ref file        
-        if self.cfg.epa_load_optmod:
-            self.cfg.raxml_model = self.refjson.get_ratehet_model()
 
         print "Total sequences: %d\n" % self.reftree_size
 
         self.refjson.get_raxml_readable_tree(self.reftree_fname)
-        self.bid_taxonomy_map = self.orig_bid_taxonomy_map
+        self.refalign_fname = self.refjson.get_alignment(self.tmp_refaln)        
+        self.refjson.get_binary_model(self.optmod_fname)
 
         if self.ranktest:
             subtree_count = self.run_leave_subtree_out_test()
 
         seq_count = self.run_leave_seq_out_test()
 
-        if not self.cfg.debug:
-            FileUtils.remove_if_exists(self.reftree_fname)
-
         self.sort_mislabels()
         self.write_mislabels()
         print "\nPercentage of mislabeled sequences: %.2f %%" % (float(self.mislabels_cnt[self.TAXONOMY_RANKS_COUNT-1]) / seq_count * 100)
 
         if not self.cfg.debug:
+            FileUtils.remove_if_exists(self.reftree_fname)
             FileUtils.remove_if_exists(self.optmod_fname)
             FileUtils.remove_if_exists(self.refalign_fname)
 

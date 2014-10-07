@@ -193,7 +193,7 @@ class GGTaxonomyFile(Taxonomy):
                             self.seq_ranks_map[sid][i] = ranks[i] + "_" + parent
                             dup_rec = (old_sid, orig_old_name, sid, orig_name, self.lineage_str(sid))
                         else:
-							dup_rec = (old_sid, self.lineage_str(old_sid), sid, self.lineage_str(sid))
+                            dup_rec = (old_sid, self.lineage_str(old_sid), sid, self.lineage_str(sid))
                         dups.append(dup_rec)
                         
         if autofix:
@@ -252,6 +252,8 @@ class GGTaxonomyFile(Taxonomy):
         
         
 class TaxTreeBuilder:
+    ROOT_LABEL = "<<root>>"
+
     def __init__(self, config, taxonomy):
         self.tree_nodes = {}
         self.leaf_count = {}
@@ -268,9 +270,9 @@ class TaxTreeBuilder:
             parent_level = rank_level            
             while ranks[parent_level] == Taxonomy.EMPTY_RANK:
                 parent_level -= 1
-            parentId = ranks[parent_level]
+            parentId = ";".join(ranks[:parent_level+1]) #ranks[parent_level]
         else:
-            parentId = "root"
+            parentId = TaxTreeBuilder.ROOT_LABEL
             parent_level = -1
 
         if (parentId in self.tree_nodes):
@@ -290,9 +292,9 @@ class TaxTreeBuilder:
             print "Number of nodes: %d" % self.taxonomy.seq_count()
         
         t0 = Tree()
-        t0.add_feature("name", "root")
-        self.tree_nodes["root"] = t0;
-        self.leaf_count["root"] = 0;
+        t0.add_feature("name", TaxTreeBuilder.ROOT_LABEL)
+        self.tree_nodes[TaxTreeBuilder.ROOT_LABEL] = t0;
+        self.leaf_count[TaxTreeBuilder.ROOT_LABEL] = 0;
         k = 0
         added = 0
         seq_ids = []
@@ -333,7 +335,7 @@ class TaxTreeBuilder:
             parent_level = tax_seq_level - 1            
             while ranks[parent_level] == Taxonomy.EMPTY_RANK:
                 parent_level -= 1
-            parent_name = ranks[parent_level]
+            parent_name = ";".join(ranks[:parent_level+1]) #ranks[parent_level]
             if parent_name in self.tree_nodes:
                 parent_node = self.tree_nodes[parent_name]
                 # filter by max number of seqs (threshold depends from rank level, 

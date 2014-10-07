@@ -12,7 +12,7 @@ try:
     from epac.msa import muscle, hmmer
     from epac.erlang import erlang
     from epac.taxonomy_util import Taxonomy
-    from epac.epa_util import epa_2_ptp
+    from epac.classify_util import TaxClassifyHelper
 except ImportError, e:
     print("Some packages are missing, please re-downloand EPA-classifier")
     print e
@@ -22,6 +22,17 @@ except ImportError, e:
 class EpaClassifier:
     def __init__(self, config, args):
         self.cfg = config
+        self.jplace_fname = args.jplace_fname
+        self.ignore_refalign = args.ignore_refalign
+        
+        self.tmp_refaln = config.tmp_fname("%NAME%.refaln")
+        #here is the final alignment file for running EPA
+        self.epa_alignment = config.tmp_fname("%NAME%.afa")
+        self.hmmprofile = config.tmp_fname("%NAME%.hmmprofile")
+        self.tmpquery = config.tmp_fname("%NAME%.tmpquery")
+        self.noalign = config.tmp_fname("%NAME%.noalign")
+        self.seqs = None
+
         try:
             self.refjson = RefJsonParser(config.refjson_fname)
         except ValueError:
@@ -33,16 +44,9 @@ class EpaClassifier:
         self.reftree = self.refjson.get_reftree()
         self.rate = self.refjson.get_rate()
         self.node_height = self.refjson.get_node_height()
+
         self.erlang = erlang()
-        self.tmp_refaln = config.tmp_fname("%NAME%.refaln")
-        #here is the final alignment file for running EPA
-        self.epa_alignment = config.tmp_fname("%NAME%.afa")
-        self.hmmprofile = config.tmp_fname("%NAME%.hmmprofile")
-        self.tmpquery = config.tmp_fname("%NAME%.tmpquery")
-        self.noalign = config.tmp_fname("%NAME%.noalign")
-        self.seqs = None
-        self.jplace_fname = args.jplace_fname
-        self.ignore_refalign = args.ignore_refalign
+        self.classify_helper = TaxClassifyHelper(self.cfg, self.bid_taxonomy_map)
 
     def cleanup(self):
         FileUtils.remove_if_exists(self.tmp_refaln)
@@ -50,7 +54,6 @@ class EpaClassifier:
         FileUtils.remove_if_exists(self.hmmprofile)
         FileUtils.remove_if_exists(self.tmpquery)
         FileUtils.remove_if_exists(self.noalign)
-
 
     def align_to_refenence(self, noalign, minp = 0.9):
         refaln = self.refjson.get_alignment(fout = self.tmp_refaln)
@@ -181,22 +184,20 @@ class EpaClassifier:
         
         placements = jp.get_placement()
         
-        if fout!=None:
+        if fout:
             fo = open(fout, "w")
-            fo2 = open(fout+".species", "w")
+        else:
+            fo = None
         
         output2 = ""
         for place in placements:
             output = None
-            taxa_name = place["n"][0]
-            origin_taxa_name = taxa_name.lstrip(EpacConfig.QUERY_SEQ_PREFIX)
+            taxon_name = place["n"][0]
+            origin_taxon_name = taxon_name.lstrip(EpacConfig.QUERY_SEQ_PREFIX)
             edges = place["p"]
             edges = self.erlang_filter(edges, p = pv)
             if len(edges) > 0:
-                if method == "1":
-                    ranks, lws = self.assign_taxonomy_maxsum(edges, minlw)
-                else:
-                    ranks, lws = self.assign_taxonomy(edges)
+                ranks, lws = self.classify_helper.classify_seq(edges, method, minlw)
                 
                 isnovo = self.novelty_check(place_edge = str(edges[0][0]), ranks =ranks, lws = lws, minlw = minlw)
                 rankout = self.print_ranks(ranks, lws, minlw)
@@ -204,17 +205,37 @@ class EpaClassifier:
                 if rankout == None:
                     output2 = output2 + origin_taxa_name+ "\t\t\t?\n"
                 else:
+                    output = "%s\t%s\t" % (origin_taxon_name, self.print_ranks(ranks, lws, minlw))
                     if isnovo: 
-                        output = origin_taxa_name+ "\t" + self.print_ranks(ranks, lws, minlw) + "\t*"
+                        output += "*"
                     else:
-                        output = origin_taxa_name+ "\t" + self.print_ranks(ranks, lws, minlw) + "\to"
+                        output +="o"
                     if self.cfg.verbose:
                         print(output) 
-                    if fout!=None:
+                    if fo:
                         fo.write(output + "\n")
             else:
-                output2 = output2 + origin_taxa_name+ "\t\t\t?\n"
+                output2 = output2 + origin_taxon_name+ "\t\t\t?\n"
         
+        if os.path.exists(self.noalign):
+            with open(self.noalign) as fnoa:
+                lines = fnoa.readlines()
+                for line in lines:
+                    taxon_name = line.strip()[1:]
+                    origin_taxon_name = taxon_name.lstrip(EpacConfig.QUERY_SEQ_PREFIX)
+                    output = "%s\t\t\t?" % origin_taxon_name
+                    if self.cfg.verbose:
+                        print(output)
+                    if fo:
+                        fo.write(output + "\n")
+        
+        if self.cfg.verbose:
+            print(output2)
+        
+        if fo:
+            fo.write(output2)
+            fo.close()
+
         #############################################
         #
         # EPA-PTP species delimitation
@@ -224,33 +245,28 @@ class EpaClassifier:
             full_aln = SeqGroup(self.epa_alignment)
             species_list = epa_2_ptp(epa_jp = jp, ref_jp = self.refjson, full_alignment = full_aln, min_lw = 0.5, debug = self.cfg.debug)
             
-            for species in species_list:
-                translated_species = []
-                for taxa in species:
-                    origin_taxa_name = taxa.lstrip(EpacConfig.QUERY_SEQ_PREFIX)
-                    translated_species.append(origin_taxa_name)
-                s = ",".join(translated_species)
-                fo2.write(s + "\n")
+            if self.cfg.verbose:
+                print "Species clusters:"
+
+            if fout:
+                fo2 = open(fout+".species", "w")
+            else:
+                fo2 = None
+
+            for sp_cluster in species_list:
+                translated_taxa = []
+                for taxon in sp_cluster:
+                    origin_taxon_name = taxon.lstrip(EpacConfig.QUERY_SEQ_PREFIX)
+                    translated_taxa.append(origin_taxon_name)
+                s = ",".join(translated_taxa)
+                if fo2:
+                    fo2.write(s + "\n")
+                if self.cfg.verbose:
+                    print s
+
+            if fo2:
+                fo2.close()
         #############################################
-        
-        if os.path.exists(self.noalign):
-            with open(self.noalign) as fnoa:
-                lines = fnoa.readlines()
-                for line in lines:
-                    if self.cfg.verbose:
-                        print(line.strip()[1:] + "\t\t\t?\n")
-                    if fout!=None:
-                        fo.write(line.strip()[1:] + "\t\t\t?\n")
-        
-        if self.cfg.verbose:
-            print(output2)
-        
-        if fout!=None:
-            fo.write(output2)
-        
-        if fout!=None:
-            fo.close()
-            fo2.close()
         
         if not self.jplace_fname:
             if not self.cfg.debug:
@@ -315,116 +331,6 @@ class EpaClassifier:
                         break
                         
                 return flag
-
-
-    def assign_taxonomy(self, edges):
-        #Calculate the sum of likelihood weight for each rank
-        taxonmy_sumlw_map = {}
-        for edge in edges:
-            edge_nr = str(edge[0])
-            lw = edge[2]
-            taxonomy = self.bid_taxonomy_map[edge_nr]
-            for rank in taxonomy:
-                if rank == "-":
-                    taxonmy_sumlw_map[rank] = -1
-                elif rank in taxonmy_sumlw_map:
-                    oldlw = taxonmy_sumlw_map[rank]
-                    taxonmy_sumlw_map[rank] = oldlw + lw
-                else:
-                    taxonmy_sumlw_map[rank] = lw
-        
-        #Assignment using the max likelihood placement
-        ml_edge = edges[0]
-        edge_nr = str(ml_edge[0])
-        maxlw = ml_edge[2]
-        ml_ranks = self.bid_taxonomy_map[edge_nr]
-        ml_ranks_copy = []
-        for rk in ml_ranks:
-            ml_ranks_copy.append(rk)
-        lws = []
-        cnt = 0
-        for rank in ml_ranks:
-            lw = taxonmy_sumlw_map[rank]
-            if lw > 1.0:
-                lw = 1.0
-            lws.append(lw)
-            if rank == "-" and cnt > 0 :                
-                for edge in edges[1:]:
-                    edge_nr = str(edge[0])
-                    taxonomy = self.bid_taxonomy_map[edge_nr]
-                    newrank = taxonomy[cnt]
-                    newlw = taxonmy_sumlw_map[newrank]
-                    higherrank_old = ml_ranks[cnt -1]
-                    higherrank_new = taxonomy[cnt -1]
-                    if higherrank_old == higherrank_new and newrank!="-":
-                        ml_ranks_copy[cnt] = newrank
-                        lws[cnt] = newlw
-            cnt = cnt + 1
-            
-        return ml_ranks_copy, lws
-
-
-    def assign_taxonomy_maxsum(self, edges, minlw = 0.):
-        """this function sums up all LH-weights for each rank and takes the rank with the max. sum """
-        # in EPA result, each placement(=branch) has a "weight"
-        # since we are interested in taxonomic placement, we do not care about branch vs. branch comparisons,
-        # but only consider rank vs. rank (e. g. G1 S1 vs. G1 S2 vs. G1)
-        # Thus we accumulate weights for each rank, there are to measures:
-        # "own" weight  = sum of weight of all placements EXACTLY to this rank (e.g. for G1: G1 only)
-        # "total" rank  = own rank + own rank of all children (for G1: G1 or G1 S1 or G1 S2)
-        rw_own = {}
-        rw_total = {}
-        rb = {}
-        
-        for edge in edges:
-            br_id = str(edge[0])
-            lweight = edge[2]
-            
-            # accumulate weight for the current sequence                
-            lowest_rank = None
-            ranks = self.bid_taxonomy_map[br_id]
-            for i in range(len(ranks)):
-                rank = ranks[i]
-                if rank != Taxonomy.EMPTY_RANK:
-                    rw_total[rank] = rw_total.get(rank, 0) + lweight
-                    lowest_rank = rank
-                    if not rank in rb:
-                        rb[rank] = br_id
-                else:
-                    break
-
-            if not lowest_rank:
-                continue
-            
-            rw_own[lowest_rank] = rw_own.get(lowest_rank, 0) + lweight
-            rb[lowest_rank] = br_id
-
-        if len(rw_own) == 0:
-            return ([], [])
-
-        # we assign the sequence to a rank, which has the max "own" weight AND 
-        # whose "total" weight is greater than a confidence threshold
-        max_rw = 0.
-        s_r = None
-        for r in rw_own.iterkeys():
-            if rw_own[r] > max_rw and rw_total[r] >= minlw:
-                s_r = r
-                max_rw = rw_own[r] 
-        if not s_r:
-            s_r = max(rw_total.iterkeys(), key=(lambda key: rw_total[key]))
-
-        a_br_id = rb[s_r]
-        a_ranks = self.bid_taxonomy_map[a_br_id]
-
-        # "total" weight is considered as confidence value for now
-        a_conf = [0.] * len(a_ranks)
-        for i in range(len(a_conf)):
-            rank = a_ranks[i]
-            if rank != Taxonomy.EMPTY_RANK:
-                a_conf[i] = rw_total[rank]
-
-        return a_ranks, a_conf
-
 
 def print_options():
     print("usage: python epa_classifier.py -r example/reference.json -q example/query.fa -t 0.5 -v")
@@ -501,8 +407,8 @@ def parse_args():
             help="""Minimal percent of the sites aligned to the reference alignment.  Default: 0.9""")
     parser.add_argument("-m", dest="method", default="1",
             help="""Assignment method 1 or 2
-                    1: Max sum likelihood (default)
-                    2: Max likelihood placement""")
+                    1: Max sum of likelihood weights (default)
+                    2: Max likelihood weight placement""")
     parser.add_argument("-T", dest="num_threads", type=int, default=None,
             help="""Specify the number of CPUs.  Default: 2""")
     parser.add_argument("-v", dest="verbose", action="store_true",
@@ -593,6 +499,14 @@ if __name__ == "__main__":
     if len(sys.argv) == 1: 
         sys.argv.append("-h")
     args = parse_args()
+    
+    if args.ptp:
+        try:
+            from epac.epa_util import epa_2_ptp
+        except ImportError, e:
+            print("PTP module (or its dependecies) not found, please see detail below:")
+            print e
+            sys.exit()
     
     check_args(args)
     config = EpacConfig(args)
