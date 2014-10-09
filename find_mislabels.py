@@ -34,7 +34,7 @@ class LeaveOneTest:
         self.reftree_fname = self.cfg.tmp_fname("ref_%NAME%.tre")
 
         try:
-            self.refjson = RefJsonParser(config.refjson_fname)
+            self.refjson = RefJsonParser(config.refjson_fname, ver="1.2")
         except ValueError:
             print("Invalid json file format!")
             sys.exit()
@@ -44,6 +44,7 @@ class LeaveOneTest:
         self.node_height = self.refjson.get_node_height()
         self.origin_taxonomy = self.refjson.get_origin_taxonomy()
         self.bid_taxonomy_map = self.refjson.get_bid_tanomomy_map()
+        self.tax_tree = self.refjson.get_tax_tree()
 
         reftree_str = self.refjson.get_raxml_readable_tree()
         reftree = Tree(reftree_str)
@@ -83,10 +84,10 @@ class LeaveOneTest:
                  6: "Species"
                 }[rank_level]
         
-    def check_seq_tax_labels(self, seq_name, ranks, lws):
-        orig_ranks = self.origin_taxonomy[seq_name]
+    def check_seq_tax_labels(self, seq_name, orig_ranks, ranks, lws):
         mislabel_lvl = -1
-        for rank_lvl in range(self.TAXONOMY_RANKS_COUNT):
+        min_len = min(len(orig_ranks),len(ranks))
+        for rank_lvl in range(min_len):
             if ranks[rank_lvl] != Taxonomy.EMPTY_RANK and ranks[rank_lvl] != orig_ranks[rank_lvl]:
                 mislabel_lvl = rank_lvl
                 break
@@ -111,14 +112,15 @@ class LeaveOneTest:
 
     def check_rank_tax_labels(self, rank_name, orig_ranks, ranks, lws):
         mislabel_lvl = -1
-        for rank_lvl in range(self.TAXONOMY_RANKS_COUNT):
+        min_len = min(len(orig_ranks),len(ranks))
+        for rank_lvl in range(min_len):
             if ranks[rank_lvl] != Taxonomy.EMPTY_RANK and ranks[rank_lvl] != orig_ranks[rank_lvl]:
                 mislabel_lvl = rank_lvl
                 break
 
         if mislabel_lvl >= 0:
             mis_rec = {}
-            mis_rec['name'] = rank_name.lstrip(EpacConfig.REF_SEQ_PREFIX)
+            mis_rec['name'] = rank_name
             mis_rec['level'] = mislabel_lvl
             mis_rec['inv_level'] = -1 * mislabel_lvl  # just for sorting
             mis_rec['orig_ranks'] = GGTaxonomyFile.strip_prefix(orig_ranks)
@@ -163,23 +165,31 @@ class LeaveOneTest:
     
     def write_mislabels(self):
         with open("%s.mis" % self.output_fname, "w") as fo_all:
-            fields = ["SeqID", "MislabeledRank", "OriginalLabel", "ProposedLabel", "Confidence", "OriginalTaxonomyPath", "ProposedTaxonomyPath", "PerRankConfidence"]
+            fields = ["SeqID", "MislabeledLevel", "OriginalLabel", "ProposedLabel", "Confidence", "OriginalTaxonomyPath", "ProposedTaxonomyPath", "PerRankConfidence"]
             if self.ranktest:
                 fields += ["HigherRankMisplacedConfidence"]
-            fo_all.write(";" + "\t".join(fields) + "\n")
+            header = ";" + "\t".join(fields) + "\n"
+            fo_all.write(header)
+            if self.cfg.verbose:
+                print "Mislabeled sequences:\n"
+                print header 
             for mis_rec in self.mislabels:
-                output = self.mis_rec_to_string(mis_rec)            
-                fo_all.write(output + "\n")
+                output = self.mis_rec_to_string(mis_rec)  + "\n"
+                fo_all.write(output)
                 if self.cfg.verbose:
                     print(output) 
 
         if self.ranktest:
             with open("%s.misrank" % self.output_fname, "w") as fo_all:
-                fields = ["SeqID", "MislabeledRank", "OriginalLabel", "ProposedLabel", "Confidence", "OriginalTaxonomyPath", "ProposedTaxonomyPath", "PerRankConfidence"]
-                fo_all.write(";" + "\t".join(fields) + "\n")
+                fields = ["RankID", "MislabeledLevel", "OriginalLabel", "ProposedLabel", "Confidence", "OriginalTaxonomyPath", "ProposedTaxonomyPath", "PerRankConfidence"]
+                header = ";" + "\t".join(fields)  + "\n"
+                fo_all.write(header)
+                if self.cfg.verbose:
+                    print "\nMislabeled higher ranks:\n"
+                    print header 
                 for mis_rec in self.rank_mislabels:
-                    output = self.mis_rec_to_string(mis_rec)            
-                    fo_all.write(output + "\n")
+                    output = self.mis_rec_to_string(mis_rec) + "\n"
+                    fo_all.write(output)
                     if self.cfg.verbose:
                         print(output) 
 
@@ -215,15 +225,25 @@ class LeaveOneTest:
         placements = jp.get_placement()
         seq_count = 0
         for place in placements:
-#            print "Placement # %d" % (seq_count + 1)
             seq_name = place["n"][0]
+            
+            # get original taxonomic label
+            nodes = self.tax_tree.get_leaves_by_name(seq_name)
+            if len(nodes) != 1:
+                print "FATAL ERROR: Sequence %s is not found in the taxonomic tree, or is present more than once!" % seq_name
+                sys.exit()
+            seq_node = nodes[0]
+            orig_ranks = Taxonomy.split_rank_uid(seq_node.up.name)
+
+            # get EPA tax label
             ranks, lws = self.classify_seq(place)
-            mis_rec = self.check_seq_tax_labels(seq_name, ranks, lws)
+            # check if they match
+            mis_rec = self.check_seq_tax_labels(seq_name, orig_ranks, ranks, lws)
+            # cross-check with higher rank mislabels
             if self.ranktest and mis_rec:
                 rank_conf = 0
-                for lvl in range(2,self.TAXONOMY_RANKS_COUNT):
-                    skip_lvls = self.TAXONOMY_RANKS_COUNT - lvl
-                    tax_path = ";".join(ranks[:lvl] + [Taxonomy.EMPTY_RANK]*skip_lvls)
+                for lvl in range(2,len(orig_ranks)):
+                    tax_path = Taxonomy.get_rank_uid(orig_ranks, lvl)
                     if tax_path in self.misrank_conf_map:
                         rank_conf = max(rank_conf, self.misrank_conf_map[tax_path])
                 mis_rec['rank_conf'] = rank_conf
@@ -239,19 +259,29 @@ class LeaveOneTest:
 
         #create file with subtrees
         rank_tips = {}
-        for sid, ranks in self.origin_taxonomy.iteritems():
-            for lvl in range(2,self.TAXONOMY_RANKS_COUNT):
-                skip_lvls = self.TAXONOMY_RANKS_COUNT - lvl
-                tax_path = ";".join(ranks[:lvl] + [Taxonomy.EMPTY_RANK]*skip_lvls)
-                if tax_path in rank_tips:
-                    rank_tips[tax_path].append(sid)
-                else:
-                    rank_tips[tax_path] = [sid]
+        rank_parent = {}
+        for node in self.tax_tree.traverse("postorder"):
+            if node.is_leaf() or node.is_root():
+                continue
+            tax_path = node.name
+            ranks = Taxonomy.split_rank_uid(tax_path)
+            rank_lvl = Taxonomy.lowest_assigned_rank_level(ranks)
+            if rank_lvl < 2:
+                continue
                 
-        for key in rank_tips.keys():
-            rank_size = len(rank_tips[key])
+            parent_ranks = Taxonomy.split_rank_uid(node.up.name)
+            parent_lvl = Taxonomy.lowest_assigned_rank_level(parent_ranks)
+            if parent_lvl < 1:
+                continue
+            
+            rank_seqs = node.get_leaf_names()
+            rank_size = len(rank_seqs)
             if rank_size < 2 or rank_size > self.reftree_size-4:
-                del rank_tips[key]
+                continue
+
+#            print rank_lvl, "\t", tax_path, "\t", rank_seqs, "\n"
+            rank_tips[tax_path] = node.get_leaf_names()
+            rank_parent[tax_path] = parent_ranks
                 
         subtree_list = rank_tips.items()
             
@@ -268,11 +298,14 @@ class LeaveOneTest:
         for jp in jp_list:
             placements = jp.get_placement()
             for place in placements:
-                tax_path = subtree_list[subtree_count][0]
-                orig_ranks = tax_path.split(";")
-                rank_name = Taxonomy.lowest_assigned_rank(orig_ranks)
                 ranks, lws = self.classify_seq(place)
-                mis_rec = self.check_rank_tax_labels(rank_name, orig_ranks, ranks, lws)
+                tax_path = subtree_list[subtree_count][0]
+                orig_ranks = Taxonomy.split_rank_uid(tax_path)
+                rank_level = Taxonomy.lowest_assigned_rank_level(orig_ranks)
+                rank_name = GGTaxonomyFile.add_rank_prefix(orig_ranks[rank_level], rank_level)
+                parent_ranks = rank_parent[tax_path]
+#                print orig_ranks, "\n", parent_ranks, "\n", ranks, "\n"
+                mis_rec = self.check_rank_tax_labels(rank_name, parent_ranks, ranks, lws)
                 if mis_rec:
                     self.misrank_conf_map[tax_path] = mis_rec['conf']
                 subtree_count += 1

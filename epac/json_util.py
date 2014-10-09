@@ -7,6 +7,28 @@ import base64
 from epac.ete2 import Tree, SeqGroup
 from subprocess import call
 
+class EpaJsonParser:
+    """This class parses the RAxML-EPA json output file"""
+    def __init__(self, jsonfin):
+        self.jdata = json.load(open(jsonfin))
+    
+    def get_placement(self):
+        return self.jdata["placements"]
+        
+    def get_tree(self):
+        return self.jdata["tree"]
+        
+    def get_std_newick_tree(self):
+        tree = self.jdata["tree"]
+        tree = tree.replace("{", "[&&NHX:B=")
+        tree = tree.replace("}", "]")
+        return tree
+
+    def get_raxml_version(self):
+        return self.jdata["metadata"]["raxml_version"]
+
+    def get_raxml_invocation(self):
+        return self.jdata["metadata"]["invocation"]
 
 class RefJsonChecker:
     def __init__(self, jsonfin= None, jdata = None):
@@ -102,31 +124,18 @@ class RefJsonChecker:
                     return False
             else:
                 return False
+
+        if nver >= 1.2:
+            if "tax_tree" in self.jdata:
+                tree = self.jdata["tax_tree"]
+                if not isinstance(tree, unicode):
+                    print("Tree is")
+                    print(type(tree).__name__)
+                    return False
+            else:
+                return False
         
         return True
-
-class EpaJsonParser:
-    """This class parses the RAxML-EPA json output file"""
-    def __init__(self, jsonfin):
-        self.jdata = json.load(open(jsonfin))
-    
-    def get_placement(self):
-        return self.jdata["placements"]
-        
-    def get_tree(self):
-        return self.jdata["tree"]
-        
-    def get_std_newick_tree(self):
-        tree = self.jdata["tree"]
-        tree = tree.replace("{", "[&&NHX:B=")
-        tree = tree.replace("}", "]")
-        return tree
-
-    def get_raxml_version(self):
-        return self.jdata["metadata"]["raxml_version"]
-
-    def get_raxml_invocation(self):
-        return self.jdata["metadata"]["invocation"]
 
 class RefJsonParser:
     """This class parses the EPA Classifier reference json file"""
@@ -163,6 +172,10 @@ class RefJsonParser:
         else:
             return Tree(tree_str, format=1)
     
+    def get_tax_tree(self):
+        t = Tree(self.jdata["tax_tree"], format=8)
+        return t
+
     def get_outgroup(self):
         t = Tree(self.jdata["outgroup"], format=9)
         return t
@@ -222,6 +235,12 @@ class RefJsonParser:
 
     def get_metadata(self):
         return self.jdata["metadata"]
+        
+    def get_field_string(self, field_name):
+        if field_name in self.jdata:
+            return json.dumps(self.jdata[field_name], indent=4, separators=(',', ': ')).strip("\"")
+        else:
+            return None
                 
 class RefJsonBuilder:
     """This class builds the EPA Classifier reference json file"""
@@ -230,7 +249,7 @@ class RefJsonBuilder:
             self.jdata = old_json.jdata
         else:
             self.jdata = {}
-            self.jdata["version"] = "1.1"
+            self.jdata["version"] = "1.2"
 #            self.jdata["author"] = "Jiajie Zhang"
         
     def set_taxonomy(self, bid_ranks_map):
@@ -238,6 +257,9 @@ class RefJsonBuilder:
 
     def set_origin_taxonomy(self, orig_tax_map):
         self.jdata["origin_taxonomy"] = orig_tax_map
+
+    def set_tax_tree(self, tr):
+        self.jdata["tax_tree"] = tr.write(format=8)
 
     def set_tree(self, tr):
         self.jdata["tree"] = tr

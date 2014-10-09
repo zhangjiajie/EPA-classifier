@@ -419,6 +419,7 @@ class RefTreeBuilder:
         jw.set_tree(self.reftree_lbl_str)
         jw.set_outgroup(self.reftree_outgroup)
         jw.set_ratehet_model(self.cfg.raxml_model)
+        jw.set_tax_tree(self.reftree_multif)
 
         mdata = { "ref_tree_size": self.reftree_size, 
                   "ref_alignment_width": self.refalign_width,

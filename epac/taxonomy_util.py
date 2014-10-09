@@ -5,6 +5,7 @@ from ete2 import Tree
 
 class Taxonomy:
     EMPTY_RANK = "-"
+    RANK_UID_DELIM = "@@"
     
     def __init__(self):
         tree_nodes = []
@@ -24,6 +25,18 @@ class Taxonomy:
     def lowest_assigned_rank(ranks):
         rank_level = Taxonomy.lowest_assigned_rank_level(ranks)
         return ranks[rank_level]
+        
+    @staticmethod    
+    def get_rank_uid(ranks, rank_level):
+        return Taxonomy.RANK_UID_DELIM.join(ranks[:rank_level+1])
+
+    @staticmethod    
+    def split_rank_uid(rank_uid, min_lvls=0):
+        ranks = rank_uid.split(Taxonomy.RANK_UID_DELIM)
+        if len(ranks) < min_lvls:
+            return ranks + [Taxonomy.EMPTY_RANK] * (min_lvls - len(ranks))
+        else:
+            return ranks
 
     def get_seq_ranks(self, seq_id):
         return []
@@ -46,6 +59,22 @@ class GGTaxonomyFile(Taxonomy):
         for i in range(len(ranks)):
             new_ranks[i] = ranks[i].lstrip(GGTaxonomyFile.rank_placeholders[i])
         return new_ranks
+
+    @staticmethod
+    def add_prefix(ranks):
+        new_ranks = ['']*len(ranks);
+        for i in range(len(ranks)):
+            new_ranks[i] = GGTaxonomyFile.add_rank_prefix(ranks[i], i)
+        return new_ranks
+
+    @staticmethod
+    def add_rank_prefix(rank_name, rank_level):
+        prefix = GGTaxonomyFile.rank_placeholders[rank_level]
+        if rank_name.startswith(prefix):
+            return rank_name
+        else:
+            return prefix + rank_name
+
 
     @staticmethod
     def lineage_str(ranks, strip_prefix=False):
@@ -270,7 +299,7 @@ class TaxTreeBuilder:
             parent_level = rank_level            
             while ranks[parent_level] == Taxonomy.EMPTY_RANK:
                 parent_level -= 1
-            parentId = ";".join(ranks[:parent_level+1]) #ranks[parent_level]
+            parentId = Taxonomy.get_rank_uid(ranks, parent_level)
         else:
             parentId = TaxTreeBuilder.ROOT_LABEL
             parent_level = -1
@@ -335,7 +364,7 @@ class TaxTreeBuilder:
             parent_level = tax_seq_level - 1            
             while ranks[parent_level] == Taxonomy.EMPTY_RANK:
                 parent_level -= 1
-            parent_name = ";".join(ranks[:parent_level+1]) #ranks[parent_level]
+            parent_name = Taxonomy.get_rank_uid(ranks, parent_level)
             if parent_name in self.tree_nodes:
                 parent_node = self.tree_nodes[parent_name]
                 # filter by max number of seqs (threshold depends from rank level, 

@@ -6,9 +6,6 @@ class TaxClassifyHelper:
         self.cfg = cfg
         self.bid_taxonomy_map = bid_taxonomy_map
 
-    def get_rank_uid(self, ranks, rank_level):
-        return ";".join(ranks[:rank_level+1])
-        
     def classify_seq(self, edges, method = "1", minlw = 0.):
         if len(edges) > 0:
             if method == "1":
@@ -89,7 +86,7 @@ class TaxClassifyHelper:
             ranks = self.bid_taxonomy_map[br_id]
             for i in range(len(ranks)):
                 rank = ranks[i]
-                rank_id = self.get_rank_uid(ranks, i)
+                rank_id = Taxonomy.get_rank_uid(ranks, i)
                 if rank != Taxonomy.EMPTY_RANK:
                     rw_total[rank_id] = rw_total.get(rank_id, 0) + lweight
                     lowest_rank = rank_id
@@ -124,7 +121,7 @@ class TaxClassifyHelper:
         for i in range(len(a_conf)):
             rank = a_ranks[i]
             if rank != Taxonomy.EMPTY_RANK:
-                rank_id = self.get_rank_uid(a_ranks, i)
+                rank_id = Taxonomy.get_rank_uid(a_ranks, i)
                 a_conf[i] = rw_total[rank_id]
 
         return a_ranks, a_conf
