@@ -63,6 +63,7 @@ class LeaveOneTest:
         self.mislabels_cnt = [0] * self.TAXONOMY_RANKS_COUNT
         self.rank_mislabels = []
         self.rank_mislabels_cnt = [0] * self.TAXONOMY_RANKS_COUNT
+        self.misrank_conf_map = {}
 
     def cleanup(self):
         FileUtils.remove_if_exists(self.tmp_refaln)
@@ -97,8 +98,8 @@ class LeaveOneTest:
             mis_rec['name'] = seq_name.lstrip(EpacConfig.REF_SEQ_PREFIX)
             mis_rec['level'] = mislabel_lvl
             mis_rec['inv_level'] = -1 * mislabel_lvl  # just for sorting
-            mis_rec['orig_ranks'] = GGTaxonomyFile.strip_prefix(orig_ranks)
-            mis_rec['ranks'] = GGTaxonomyFile.strip_prefix(ranks)
+            mis_rec['orig_ranks'] = orig_ranks
+            mis_rec['ranks'] = ranks
             mis_rec['lws'] = lws
             mis_rec['conf'] = lws[mislabel_lvl]
             self.mislabels.append(mis_rec)
@@ -123,8 +124,8 @@ class LeaveOneTest:
             mis_rec['name'] = rank_name
             mis_rec['level'] = mislabel_lvl
             mis_rec['inv_level'] = -1 * mislabel_lvl  # just for sorting
-            mis_rec['orig_ranks'] = GGTaxonomyFile.strip_prefix(orig_ranks)
-            mis_rec['ranks'] = GGTaxonomyFile.strip_prefix(ranks)
+            mis_rec['orig_ranks'] = orig_ranks
+            mis_rec['ranks'] = ranks
             mis_rec['lws'] = lws
             mis_rec['conf'] = lws[mislabel_lvl]
             self.rank_mislabels.append(mis_rec)
@@ -284,6 +285,9 @@ class LeaveOneTest:
             rank_parent[tax_path] = parent_ranks
                 
         subtree_list = rank_tips.items()
+        
+        if len(subtree_list) == 0:
+            return 0
             
         subtree_list_file = self.cfg.subst_name("treelist_%NAME%.txt")
         with open(subtree_list_file, "w") as fout:
@@ -293,7 +297,6 @@ class LeaveOneTest:
         jp_list = self.raxml.run_epa(job_name, self.refalign_fname, self.reftree_fname, self.optmod_fname, 
             mode="l1o_subtree", subtree_fname=subtree_list_file)
 
-        self.misrank_conf_map = {}
         subtree_count = 0
         for jp in jp_list:
             placements = jp.get_placement()
@@ -382,6 +385,8 @@ def parse_args():
             help="""Do not call RAxML EPA, use existing .jplace file as input instead.""")
     parser.add_argument("-c", dest="config_fname", default=None,
             help="Config file name.")
+    parser.add_argument("-tmpdir", dest="temp_dir", default=None,
+            help="""Directory for temporary files.""")
     args = parser.parse_args()
     return args
 

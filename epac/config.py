@@ -45,7 +45,10 @@ class EpacConfig:
         self.basepath = os.path.dirname(os.path.abspath(__file__))
         self.epac_home = os.path.abspath(os.path.join(self.basepath, os.pardir)) + "/"
         self.reftree_home = os.path.abspath("reftree/") + "/"
-        self.temp_dir = self.basepath + "/tmp/"
+        if args.temp_dir:
+            self.temp_dir = args.temp_dir + "/"
+        else:
+            self.temp_dir = self.basepath + "/tmp/"
         self.raxml_outdir = self.temp_dir #"raxml_output/"
         self.raxml_outdir_abs = os.path.abspath(self.raxml_outdir)
         self.results_home = os.path.abspath("results/") + "/"

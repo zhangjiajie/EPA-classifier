@@ -528,6 +528,8 @@ information needed for taxonomic placement of query sequences.""")
             abort       report duplicates and exit
             skip        skip the corresponding sequences (exlude from reference)
             autofix     try to guess wich ranks should be added or removed (use with caution!)""")
+    parser.add_argument("-tmpdir", dest="temp_dir", default=None,
+            help="""Directory for temporary files.""")
     
     if len(sys.argv) < 4:
         parser.print_help()

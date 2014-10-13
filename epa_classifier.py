@@ -427,6 +427,8 @@ def parse_args():
             action="store_true")
     parser.add_argument("-x", dest="ignore_refalign", action="store_true",
             help="Query file contains complete alignment (query+reference), so use it and ignore reference alignment from .json file.")
+    parser.add_argument("-tmpdir", dest="temp_dir", default=None,
+            help="""Directory for temporary files.""")
     args = parser.parse_args()
     return args
 
