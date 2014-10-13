@@ -170,7 +170,6 @@ class GGTaxonomyFile(Taxonomy):
             self.make_binomial_name(ranks);
 
     def load_taxonomy(self):
-        print "Loading the taxonomy file..."
         fin = open(self.tax_fname)
         for line in fin:
             line = line.strip()
@@ -186,7 +185,7 @@ class GGTaxonomyFile(Taxonomy):
                 
             if len(ranks) < 7:
                 ranks += [Taxonomy.EMPTY_RANK] * (7 - len(ranks))
-                print "WARNING: sequence " + sid + " has incomplete taxonomic annotation. Missing ranks were considered empty (%s)" % Taxonomy.EMPTY_RANK 
+#                print "WARNING: sequence " + sid + " has incomplete taxonomic annotation. Missing ranks were considered empty (%s)" % Taxonomy.EMPTY_RANK 
 
             self.seq_ranks_map[sid] = ranks     
 

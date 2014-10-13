@@ -20,7 +20,6 @@ class RefTreeBuilder:
         self.epalbl_job_name = self.cfg.subst_name("epalbl_%NAME%")
         self.optmod_job_name = self.cfg.subst_name("optmod_%NAME%")
         self.raxml_wrapper = RaxmlWrapper(config)
-        self.taxonomy = GGTaxonomyFile(config.taxonomy_fname, EpacConfig.REF_SEQ_PREFIX)
         
         self.outgr_fname = self.cfg.tmp_fname("%NAME%_outgr.tre")
         self.reftree_mfu_fname = self.cfg.tmp_fname("%NAME%_mfu.tre")
@@ -32,6 +31,31 @@ class RefTreeBuilder:
         self.brmap_fname = self.cfg.tmp_fname("%NAME%_map.txt")
 
     def validate_taxonomy(self):
+        # make sure we don't taxonomy "irregularities" (more than 7 ranks or missing ranks in the middle)
+        action = self.cfg.wrong_rank_count
+        if action != "ignore":
+            autofix = action == "autofix"
+            errs = self.taxonomy.check_for_disbalance(autofix)
+            if len(errs) > 0:
+                if action == "autofix":
+                    print "WARNING: %d sequences with invalid annotation (missing/redundant ranks) found and were fixed as follows:\n" % len(errs)
+                    for err in errs:
+                        print "Original:   %s\t%s"   % (err[0], err[1])
+                        print "Fixed as:   %s\t%s\n" % (err[0], err[2])
+                elif action == "skip":
+                    print "WARNING: Following %d sequences with invalid annotation (missing/redundant ranks) were skipped:\n" % len(errs)
+                    for err in errs:
+                        self.taxonomy.remove_seq(err[0])
+                        print "%s\t%s" % err
+                else:  # abort
+                    print "ERROR: %d sequences with invalid annotation (missing/redundant ranks) found:\n" % len(errs)
+                    for err in errs:
+                        print "%s\t%s" % err
+                    print "\nPlease fix them manually (add/remove ranks) and run the pipeline again (or use -wrong-rank-count autofix option)"
+                    print "NOTE: Only standard 7-level taxonomies are supported at the moment. Although missing trailing ranks (e.g. species) are allowed,"
+                    print "missing intermediate ranks (e.g. family) or sublevels (e.g. suborder) are not!\n"
+                    sys.exit()
+
         # check for duplicate rank names
         action = self.cfg.dup_rank_names
         if action != "ignore":
@@ -56,30 +80,6 @@ class RefTreeBuilder:
                     print "Please fix (rename) them and run the pipeline again (or use -dup-rank-names autofix option)" 
                     sys.exit()
         
-        # make sure we don't taxonomy "irregularities" (more than 7 ranks or missing ranks in the middle)
-        action = self.cfg.wrong_rank_count
-        autofix = action == "autofix"
-        errs = self.taxonomy.check_for_disbalance(autofix)
-        if len(errs) > 0:
-            if action == "autofix":
-                print "WARNING: %d sequences with invalid annotation (missing/redundant ranks) found and were fixed as follows:\n" % len(errs)
-                for err in errs:
-                    print "Original:   %s\t%s"   % (err[0], err[1])
-                    print "Fixed as:   %s\t%s\n" % (err[0], err[2])
-            elif action == "skip":
-                print "WARNING: Following %d sequences with invalid annotation (missing/redundant ranks) were skipped:\n" % len(errs)
-                for err in errs:
-                    self.taxonomy.remove_seq(err[0])
-                    print "%s\t%s" % err
-            else:  # abort
-                print "ERROR: %d sequences with invalid annotation (missing/redundant ranks) found:\n" % len(errs)
-                for err in errs:
-                    print "%s\t%s" % err
-                print "\nPlease fix them manually (add/remove ranks) and run the pipeline again (or use -wrong-rank-count autofix option)"
-                print "NOTE: Only standard 7-level taxonomies are supported at the moment. Although missing trailing ranks (e.g. species) are allowed,"
-                print "missing intermediate ranks (e.g. family) or sublevels (e.g. suborder) are not!\n"
-                sys.exit()
-                
         # final touch - add prefixes, remove spaces etc. 
  #       self.taxonomy.normalize_rank_names()
 
@@ -463,7 +463,9 @@ class RefTreeBuilder:
 
     # top-level function to build a reference tree    
     def build_ref_tree(self):
-        print "\n=> Building a multifurcating tree from taxonomy: %s (%d seqs)...\n" % (self.cfg.taxonomy_fname, self.taxonomy.seq_count())
+        print "\n> Loading taxonomy from file: %s ...\n" % (self.cfg.taxonomy_fname)
+        self.taxonomy = GGTaxonomyFile(self.cfg.taxonomy_fname, EpacConfig.REF_SEQ_PREFIX)
+        print "\n=> Building a multifurcating tree from taxonomy with %d seqs ...\n" % self.taxonomy.seq_count()
         self.validate_taxonomy()
         self.build_multif_tree()
         print "\n==> Building the reference alignment " + "...\n"
@@ -523,8 +525,9 @@ information needed for taxonomic placement of query sequences.""")
             abort       report duplicates and exit
             skip        skip the corresponding sequences (exlude from reference)
             autofix     make name unique by concatenating it with the parent rank's name""")
-    parser.add_argument("-wrong-rank-count", dest="wrong_rank_count", choices=["abort", "skip", "autofix"],
-            default="abort", help="""Action to be performed if lineage has less (more) than 7 ranks
+    parser.add_argument("-wrong-rank-count", dest="wrong_rank_count", choices=["ignore", "abort", "skip", "autofix"],
+            default="ignore", help="""Action to be performed if lineage has less (more) than 7 ranks
+            ignore      do nothing
             abort       report duplicates and exit
             skip        skip the corresponding sequences (exlude from reference)
             autofix     try to guess wich ranks should be added or removed (use with caution!)""")

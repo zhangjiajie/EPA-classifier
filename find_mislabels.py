@@ -171,7 +171,7 @@ class LeaveOneTest:
                 fields += ["HigherRankMisplacedConfidence"]
             header = ";" + "\t".join(fields) + "\n"
             fo_all.write(header)
-            if self.cfg.verbose:
+            if self.cfg.verbose and len(self.mislabels) > 0:
                 print "Mislabeled sequences:\n"
                 print header 
             for mis_rec in self.mislabels:
@@ -185,7 +185,7 @@ class LeaveOneTest:
                 fields = ["RankID", "MislabeledLevel", "OriginalLabel", "ProposedLabel", "Confidence", "OriginalTaxonomyPath", "ProposedTaxonomyPath", "PerRankConfidence"]
                 header = ";" + "\t".join(fields)  + "\n"
                 fo_all.write(header)
-                if self.cfg.verbose:
+                if self.cfg.verbose  and len(self.rank_mislabels) > 0:
                     print "\nMislabeled higher ranks:\n"
                     print header 
                 for mis_rec in self.rank_mislabels:
