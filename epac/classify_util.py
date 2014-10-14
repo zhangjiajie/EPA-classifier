@@ -101,7 +101,10 @@ class TaxClassifyHelper:
             elif self.cfg.verbose:
                 print "WARNING: no annotation for branch ", br_id
             
-
+        # if all branches have empty ranks only, just return this placement
+        if len(rw_total) == 0:
+            return ranks, [1.] * len(ranks)
+        
         # we assign the sequence to a rank, which has the max "own" weight AND 
         # whose "total" weight is greater than a confidence threshold
         max_rw = 0.
