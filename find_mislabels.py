@@ -45,6 +45,7 @@ class LeaveOneTest:
         self.origin_taxonomy = self.refjson.get_origin_taxonomy()
         self.bid_taxonomy_map = self.refjson.get_bid_tanomomy_map()
         self.tax_tree = self.refjson.get_tax_tree()
+        self.cfg.compress_patterns = self.refjson.get_pattern_compression()
 
         reftree_str = self.refjson.get_raxml_readable_tree()
         reftree = Tree(reftree_str)

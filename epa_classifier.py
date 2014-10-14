@@ -44,6 +44,7 @@ class EpaClassifier:
         self.reftree = self.refjson.get_reftree()
         self.rate = self.refjson.get_rate()
         self.node_height = self.refjson.get_node_height()
+        self.cfg.compress_patterns = self.refjson.get_pattern_compression()
 
         self.erlang = erlang()
         self.classify_helper = TaxClassifyHelper(self.cfg, self.bid_taxonomy_map)

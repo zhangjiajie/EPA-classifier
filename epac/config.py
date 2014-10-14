@@ -82,6 +82,7 @@ class EpacConfig:
         self.epa_heur_rate = 0.01
         self.min_confidence = 0.2
         self.num_threads = 2
+        self.compress_patterns = False
 
     def resolve_auto_settings(self, tree_size):
         if self.raxml_model == "AUTO":
@@ -163,12 +164,13 @@ class EpacConfig:
 class EpacTrainerConfig(EpacConfig):
     
     def __init__(self, args):
+        EpacConfig.__init__(self, args)
         self.taxonomy_fname = args.taxonomy_fname
         self.align_fname = args.align_fname
         self.no_hmmer = args.no_hmmer
         self.dup_rank_names  = args.dup_rank_names
         self.wrong_rank_count  = args.wrong_rank_count
-        EpacConfig.__init__(self, args)
+        self.compress_patterns = args.compress_patterns
         
     def set_defaults(self):
         EpacConfig.set_defaults(self)

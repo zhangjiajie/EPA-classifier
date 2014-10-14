@@ -85,7 +85,7 @@ class RaxmlWrapper:
         if self.config.epa_load_optmod and optmod_fname:
             if os.path.isfile(optmod_fname):
                 raxml_params += ["-R", optmod_fname]
-                if self.config.raxml_model == "GTRCAT":
+                if self.config.raxml_model == "GTRCAT" and not self.config.compress_patterns:
                     raxml_params +=  ["-H"]
             else:
                 print "WARNING: Binary model file not found: %s" % optmod_fname

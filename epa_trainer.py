@@ -193,7 +193,7 @@ class RefTreeBuilder:
             # RAxML call to optimize model parameters and write them down to the binary model file
             print "\nOptimizing model parameters: \n"
             raxml_params = ["-f", "e", "-s", self.reduced_refalign_fname, "-t", bfu_fname, "--no-seq-check"]
-            if self.cfg.raxml_model == "GTRCAT":
+            if self.cfg.raxml_model == "GTRCAT" and not self.cfg.compress_patterns:
                 raxml_params +=  ["-H"]
             self.invocation_raxml_optmod = self.raxml_wrapper.run(self.optmod_job_name, raxml_params)
             if self.raxml_wrapper.result_exists(self.optmod_job_name):
@@ -420,6 +420,7 @@ class RefTreeBuilder:
         jw.set_outgroup(self.reftree_outgroup)
         jw.set_ratehet_model(self.cfg.raxml_model)
         jw.set_tax_tree(self.reftree_multif)
+        jw.set_pattern_compression(self.cfg.compress_patterns)
 
         mdata = { "ref_tree_size": self.reftree_size, 
                   "ref_alignment_width": self.refalign_width,
@@ -511,6 +512,8 @@ information needed for taxonomic placement of query sequences.""")
             help="""Specify the number of CPUs.  Default: 2""")            
     parser.add_argument("-c", dest="config_fname", default=None,
             help="""Config file name.""")
+    parser.add_argument("-C", dest="compress_patterns", default=False, action="store_true",
+            help="""Enable pattern compression during model optimization under GTRCAT. Default: FALSE""")
     parser.add_argument("-n", dest="output_name", default=None,
             help="""Run name.""")
     parser.add_argument("-v", dest="verbose", action="store_true",

@@ -233,6 +233,12 @@ class RefJsonParser:
     def get_ratehet_model(self):
         return self.jdata["ratehet_model"]
 
+    def get_pattern_compression(self):
+        if "pattern_compression" in self.jdata:
+            return self.jdata["pattern_compression"]
+        else:
+            return False
+
     def get_metadata(self):
         return self.jdata["metadata"]
         
@@ -289,6 +295,9 @@ class RefJsonBuilder:
 
     def set_ratehet_model(self, model):
         self.jdata["ratehet_model"] = model
+
+    def set_pattern_compression(self, value):
+        self.jdata["pattern_compression"] = value
 
     def set_metadata(self, metadata):    
         self.jdata["metadata"] = metadata
