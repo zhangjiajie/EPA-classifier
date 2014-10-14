@@ -58,7 +58,7 @@ class LeaveOneTest:
         
         self.classify_helper = TaxClassifyHelper(self.cfg, self.bid_taxonomy_map)
 
-        self.TAXONOMY_RANKS_COUNT = 7
+        self.TAXONOMY_RANKS_COUNT = 10
         self.mislabels = []
         self.mislabels_cnt = [0] * self.TAXONOMY_RANKS_COUNT
         self.rank_mislabels = []
@@ -75,15 +75,58 @@ class LeaveOneTest:
         else:
             print "ERROR: no placements! something is definitely wrong!"
 
-    def rank_level_name(self, rank_level):
-        return { 0: "Kingdom",
-                 1: "Phylum",
-                 2: "Class",
-                 3: "Order",
-                 4: "Family",
-                 5: "Genus",
-                 6: "Species"
-                }[rank_level]
+    def rank_level_name(self, uni_rank_level):
+        return { 0:  ("?__", "Unknown"),
+                 1: ("k__", "Kingdom"),
+                 2: ("p__", "Phylum"),
+                 3: ("c__", "Class"),
+                 4: ("d__", "Subclass"),
+                 5: ("o__", "Order"),
+                 6: ("n__", "Suborder"),
+                 7: ("f__", "Family"),
+                 8: ("g__", "Genus"),
+                 9: ("s__", "Species")
+                }[uni_rank_level]
+                
+    def guess_rank_level(self, ranks, rank_level):
+        rank_name = ranks[rank_level]
+        
+        real_level = 0
+        
+        # check common prefixes and suffixes
+        if rank_name.startswith("k__") or rank_name.lower() in ["bacteria", "archaea", "eukaryota"]:
+            real_level = 1
+        elif rank_name.startswith("p__"):
+            real_level = 2
+        elif rank_name.startswith("c__"):
+            real_level = 3
+        elif rank_name.endswith("dae"):
+            real_level = 4
+        elif rank_name.startswith("o__") or rank_name.endswith("ales"):
+            real_level = 5
+        elif rank_name.endswith("neae"):
+            real_level = 6
+        elif rank_name.startswith("f__") or rank_name.endswith("ceae"):
+            real_level = 7
+        elif rank_name.startswith("g__"):
+            real_level = 8
+        elif rank_name.startswith("s__"):
+            real_level = 9
+            
+        if real_level == 0:
+            if rank_level == 0:    # kingdom
+                real_level = 1
+            else:
+                parent_level = self.guess_rank_level(ranks, rank_level-1)
+                real_level = parent_level + 1
+                if len(ranks) < 8 and (real_level in [4,6]):
+                    real_level += 1
+                             
+        return real_level
+         
+    def guess_rank_level_name(self, ranks, rank_level):
+        real_level = self.guess_rank_level(ranks, rank_level)
+        return self.rank_level_name(real_level)
         
     def check_seq_tax_labels(self, seq_name, orig_ranks, ranks, lws):
         mislabel_lvl = -1
@@ -94,18 +137,19 @@ class LeaveOneTest:
                 break
 
         if mislabel_lvl >= 0:
+            real_lvl = self.guess_rank_level(orig_ranks, mislabel_lvl)
             mis_rec = {}
             mis_rec['name'] = seq_name.lstrip(EpacConfig.REF_SEQ_PREFIX)
-            mis_rec['level'] = mislabel_lvl
-            mis_rec['inv_level'] = -1 * mislabel_lvl  # just for sorting
+            mis_rec['orig_level'] = mislabel_lvl
+            mis_rec['real_level'] = real_lvl
+            mis_rec['level_name'] = self.rank_level_name(real_lvl)[1]
+            mis_rec['inv_level'] = -1 * real_lvl  # just for sorting
             mis_rec['orig_ranks'] = orig_ranks
             mis_rec['ranks'] = ranks
             mis_rec['lws'] = lws
             mis_rec['conf'] = lws[mislabel_lvl]
             self.mislabels.append(mis_rec)
-
-            for i in range(mislabel_lvl, self.TAXONOMY_RANKS_COUNT):
-                self.mislabels_cnt[i] += 1
+            self.mislabels_cnt[real_lvl] += 1
             
             return mis_rec
         else:
@@ -120,27 +164,28 @@ class LeaveOneTest:
                 break
 
         if mislabel_lvl >= 0:
+            real_lvl = self.guess_rank_level(orig_ranks, mislabel_lvl)
             mis_rec = {}
             mis_rec['name'] = rank_name
-            mis_rec['level'] = mislabel_lvl
-            mis_rec['inv_level'] = -1 * mislabel_lvl  # just for sorting
+            mis_rec['orig_level'] = mislabel_lvl
+            mis_rec['real_level'] = real_lvl
+            mis_rec['level_name'] = self.rank_level_name(real_lvl)[1]
+            mis_rec['inv_level'] = -1 * real_lvl  # just for sorting
             mis_rec['orig_ranks'] = orig_ranks
             mis_rec['ranks'] = ranks
             mis_rec['lws'] = lws
             mis_rec['conf'] = lws[mislabel_lvl]
             self.rank_mislabels.append(mis_rec)
-
-            for i in range(mislabel_lvl, self.TAXONOMY_RANKS_COUNT):
-                self.rank_mislabels_cnt[i] += 1
+            self.rank_mislabels_cnt[real_lvl] += 1
                 
             return mis_rec
         else:
             return None                
 
     def mis_rec_to_string_old(self, mis_rec):
-        lvl = mis_rec['level']
+        lvl = mis_rec['orig_level']
         output = mis_rec['name'] + "\t"
-        output += "%s\t%s\t%s\t%.3f\n" % (self.rank_level_name(lvl), 
+        output += "%s\t%s\t%s\t%.3f\n" % (mis_rec['level_name'], 
             mis_rec['orig_ranks'][lvl], mis_rec['ranks'][lvl], mis_rec['lws'][lvl])
         output += ";".join(mis_rec['orig_ranks']) + "\n"
         output += ";".join(mis_rec['ranks']) + "\n"
@@ -148,9 +193,9 @@ class LeaveOneTest:
         return output
 
     def mis_rec_to_string(self, mis_rec):
-        lvl = mis_rec['level']
+        lvl = mis_rec['orig_level']
         output = mis_rec['name'] + "\t"
-        output += "%s\t%s\t%s\t%.3f\t" % (self.rank_level_name(lvl), 
+        output += "%s\t%s\t%s\t%.3f\t" % (mis_rec['level_name'], 
             mis_rec['orig_ranks'][lvl], mis_rec['ranks'][lvl], mis_rec['lws'][lvl])
         output += Taxonomy.lineage_str(mis_rec['orig_ranks']) + "\t"
         output += Taxonomy.lineage_str(mis_rec['ranks']) + "\t"
@@ -196,26 +241,19 @@ class LeaveOneTest:
 
         print "Mislabels counts by ranks:"        
         with open("%s.stats" % self.output_fname, "w") as fo_stat:
-            for i in range(self.TAXONOMY_RANKS_COUNT):
-                rname = self.rank_level_name(i).ljust(10)
-                output = "%s:\t%d" % (rname, self.mislabels_cnt[i])
-                if self.ranktest:
-                    output += "\t%d" % self.rank_mislabels_cnt[i]
-                fo_stat.write(output + "\n")
-                print(output) 
-
-    def write_sorted_map(self, fname, out_map):
-        total = sum(out_map.itervalues())
-        
-        sorted_map = [(k,v) for v,k in reversed(sorted(
-                 [(v,k) for k,v in out_map.items()]
-                 ))
-              ]       
-
-        with open(fname, "w") as fout:
-            for key, value in sorted_map:
-                fout.write("%s: %d %f\n" % (key, value, float(value) / total))
-        
+            seq_sum = 0
+            rank_sum = 0
+            for i in range(1, self.TAXONOMY_RANKS_COUNT):
+                rname = self.rank_level_name(i)[1].ljust(10)
+                if self.mislabels_cnt[i] > 0 or i not in [4,6]:
+                    seq_sum += self.mislabels_cnt[i]
+                    output = "%s:\t%d" % (rname, seq_sum)
+                    if self.ranktest:
+                        rank_sum += self.rank_mislabels_cnt[i]
+                        output += "\t%d" % rank_sum
+                    fo_stat.write(output + "\n")
+                    print(output) 
+       
     def run_leave_seq_out_test(self):
         job_name = self.cfg.subst_name("epa_%NAME%")
         if self.jplace_fname:
@@ -305,7 +343,10 @@ class LeaveOneTest:
                 tax_path = subtree_list[subtree_count][0]
                 orig_ranks = Taxonomy.split_rank_uid(tax_path)
                 rank_level = Taxonomy.lowest_assigned_rank_level(orig_ranks)
-                rank_name = GGTaxonomyFile.add_rank_prefix(orig_ranks[rank_level], rank_level)
+                rank_prefix = self.guess_rank_level_name(orig_ranks, rank_level)[0]
+                rank_name = orig_ranks[rank_level]
+                if not rank_name.startswith(rank_prefix):
+                    rank_name = rank_prefix + rank_name
                 parent_ranks = rank_parent[tax_path]
 #                print orig_ranks, "\n", parent_ranks, "\n", ranks, "\n"
                 mis_rec = self.check_rank_tax_labels(rank_name, parent_ranks, ranks, lws)
@@ -331,7 +372,7 @@ class LeaveOneTest:
 
         self.sort_mislabels()
         self.write_mislabels()
-        print "\nPercentage of mislabeled sequences: %.2f %%" % (float(self.mislabels_cnt[self.TAXONOMY_RANKS_COUNT-1]) / seq_count * 100)
+        print "\nPercentage of mislabeled sequences: %.2f %%" % (float(len(self.mislabels)) / seq_count * 100)
 
         if not self.cfg.debug:
             FileUtils.remove_if_exists(self.reftree_fname)

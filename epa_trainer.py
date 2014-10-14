@@ -81,7 +81,7 @@ class RefTreeBuilder:
                     sys.exit()
         
         # final touch - add prefixes, remove spaces etc. 
- #       self.taxonomy.normalize_rank_names()
+        self.taxonomy.normalize_rank_names()
 
     def build_multif_tree(self):
         c = self.cfg
