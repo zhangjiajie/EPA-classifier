@@ -157,7 +157,9 @@ class GGTaxonomyFile(Taxonomy):
                 ranks[last_rank] = prefix + genus_name + "_" + sp_name
 
     def normalize_rank_name(self, rank, rank_name):
-        rank_name = rank_name.replace("(", "_").replace(")", "_")
+        invalid_chars = ['(', ')', ',', ';', ':']
+        for ch in invalid_chars:
+            rank_name = rank_name.replace(ch, "_")
 #        rank_prefix = self.rank_placeholders[rank] if rank < 7 else ""
 #        if not rank_name.startswith(rank_prefix):
 #            rank_name = rank_prefix + rank_name
@@ -169,6 +171,17 @@ class GGTaxonomyFile(Taxonomy):
                 ranks[i] = self.normalize_rank_name(i, ranks[i])
 #            self.make_binomial_name(ranks);
 
+    def close_taxonomy_gaps(self):
+        for sid, ranks in self.seq_ranks_map.iteritems():
+            last_rank = None
+            gap_count = 0
+            for i in reversed(range(1, len(ranks))):
+                if ranks[i] != Taxonomy.EMPTY_RANK:
+                    last_rank = ranks[i]
+                elif last_rank:
+                    gap_count += 1
+                    ranks[i] = "parent%d_" % gap_count + last_rank
+            
     def load_taxonomy(self):
         fin = open(self.tax_fname)
         for line in fin:

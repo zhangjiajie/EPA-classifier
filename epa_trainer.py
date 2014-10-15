@@ -80,8 +80,10 @@ class RefTreeBuilder:
                     print "Please fix (rename) them and run the pipeline again (or use -dup-rank-names autofix option)" 
                     sys.exit()
         
-        # final touch - add prefixes, remove spaces etc. 
+        # check for invalid characters in rank names
         self.taxonomy.normalize_rank_names()
+        
+        self.taxonomy.close_taxonomy_gaps()
 
     def build_multif_tree(self):
         c = self.cfg
