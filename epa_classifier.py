@@ -204,7 +204,7 @@ class EpaClassifier:
                 rankout = self.print_ranks(ranks, lws, minlw)
                 
                 if rankout == None:
-                    output2 = output2 + origin_taxa_name+ "\t\t\t?\n"
+                    output2 = output2 + origin_taxon_name+ "\t\t\t?\n"
                 else:
                     output = "%s\t%s\t" % (origin_taxon_name, self.print_ranks(ranks, lws, minlw))
                     if isnovo: 
