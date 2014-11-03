@@ -5,6 +5,7 @@ from ete2 import Tree
 
 class Taxonomy:
     EMPTY_RANK = "-"
+    RANK_UID_DELIM = "@@"
     
     def __init__(self):
         tree_nodes = []
@@ -24,6 +25,18 @@ class Taxonomy:
     def lowest_assigned_rank(ranks):
         rank_level = Taxonomy.lowest_assigned_rank_level(ranks)
         return ranks[rank_level]
+        
+    @staticmethod    
+    def get_rank_uid(ranks, rank_level):
+        return Taxonomy.RANK_UID_DELIM.join(ranks[:rank_level+1])
+
+    @staticmethod    
+    def split_rank_uid(rank_uid, min_lvls=0):
+        ranks = rank_uid.split(Taxonomy.RANK_UID_DELIM)
+        if len(ranks) < min_lvls:
+            return ranks + [Taxonomy.EMPTY_RANK] * (min_lvls - len(ranks))
+        else:
+            return ranks
 
     def get_seq_ranks(self, seq_id):
         return []
@@ -46,6 +59,22 @@ class GGTaxonomyFile(Taxonomy):
         for i in range(len(ranks)):
             new_ranks[i] = ranks[i].lstrip(GGTaxonomyFile.rank_placeholders[i])
         return new_ranks
+
+    @staticmethod
+    def add_prefix(ranks):
+        new_ranks = ['']*len(ranks);
+        for i in range(len(ranks)):
+            new_ranks[i] = GGTaxonomyFile.add_rank_prefix(ranks[i], i)
+        return new_ranks
+
+    @staticmethod
+    def add_rank_prefix(rank_name, rank_level):
+        prefix = GGTaxonomyFile.rank_placeholders[rank_level]
+        if rank_name.startswith(prefix):
+            return rank_name
+        else:
+            return prefix + rank_name
+
 
     @staticmethod
     def lineage_str(ranks, strip_prefix=False):
@@ -128,20 +157,32 @@ class GGTaxonomyFile(Taxonomy):
                 ranks[last_rank] = prefix + genus_name + "_" + sp_name
 
     def normalize_rank_name(self, rank, rank_name):
-        rank_name = rank_name.replace(" ", "_").replace("(", "").replace(")", "")
-        rank_prefix = self.rank_placeholders[rank] if rank < 7 else ""
-        if not rank_name.startswith(rank_prefix):
-            rank_name = rank_prefix + rank_name
+        invalid_chars = ['(', ')', ',', ';', ':']
+        for ch in invalid_chars:
+            rank_name = rank_name.replace(ch, "_")
+#        rank_prefix = self.rank_placeholders[rank] if rank < 7 else ""
+#        if not rank_name.startswith(rank_prefix):
+#            rank_name = rank_prefix + rank_name
         return rank_name
 
     def normalize_rank_names(self):
         for sid, ranks in self.seq_ranks_map.iteritems():
             for i in range(1, len(ranks)):
                 ranks[i] = self.normalize_rank_name(i, ranks[i])
-            self.make_binomial_name(ranks);
+#            self.make_binomial_name(ranks);
 
+    def close_taxonomy_gaps(self):
+        for sid, ranks in self.seq_ranks_map.iteritems():
+            last_rank = None
+            gap_count = 0
+            for i in reversed(range(1, len(ranks))):
+                if ranks[i] != Taxonomy.EMPTY_RANK:
+                    last_rank = ranks[i]
+                elif last_rank:
+                    gap_count += 1
+                    ranks[i] = "parent%d_" % gap_count + last_rank
+            
     def load_taxonomy(self):
-        print "Loading the taxonomy file..."
         fin = open(self.tax_fname)
         for line in fin:
             line = line.strip()
@@ -157,7 +198,7 @@ class GGTaxonomyFile(Taxonomy):
                 
             if len(ranks) < 7:
                 ranks += [Taxonomy.EMPTY_RANK] * (7 - len(ranks))
-                print "WARNING: sequence " + sid + " has incomplete taxonomic annotation. Missing ranks were considered empty (%s)" % Taxonomy.EMPTY_RANK 
+#                print "WARNING: sequence " + sid + " has incomplete taxonomic annotation. Missing ranks were considered empty (%s)" % Taxonomy.EMPTY_RANK 
 
             self.seq_ranks_map[sid] = ranks     
 
@@ -193,7 +234,7 @@ class GGTaxonomyFile(Taxonomy):
                             self.seq_ranks_map[sid][i] = ranks[i] + "_" + parent
                             dup_rec = (old_sid, orig_old_name, sid, orig_name, self.lineage_str(sid))
                         else:
-							dup_rec = (old_sid, self.lineage_str(old_sid), sid, self.lineage_str(sid))
+                            dup_rec = (old_sid, self.lineage_str(old_sid), sid, self.lineage_str(sid))
                         dups.append(dup_rec)
                         
         if autofix:
@@ -252,6 +293,8 @@ class GGTaxonomyFile(Taxonomy):
         
         
 class TaxTreeBuilder:
+    ROOT_LABEL = "<<root>>"
+
     def __init__(self, config, taxonomy):
         self.tree_nodes = {}
         self.leaf_count = {}
@@ -268,9 +311,9 @@ class TaxTreeBuilder:
             parent_level = rank_level            
             while ranks[parent_level] == Taxonomy.EMPTY_RANK:
                 parent_level -= 1
-            parentId = ranks[parent_level]
+            parentId = Taxonomy.get_rank_uid(ranks, parent_level)
         else:
-            parentId = "root"
+            parentId = TaxTreeBuilder.ROOT_LABEL
             parent_level = -1
 
         if (parentId in self.tree_nodes):
@@ -290,9 +333,9 @@ class TaxTreeBuilder:
             print "Number of nodes: %d" % self.taxonomy.seq_count()
         
         t0 = Tree()
-        t0.add_feature("name", "root")
-        self.tree_nodes["root"] = t0;
-        self.leaf_count["root"] = 0;
+        t0.add_feature("name", TaxTreeBuilder.ROOT_LABEL)
+        self.tree_nodes[TaxTreeBuilder.ROOT_LABEL] = t0;
+        self.leaf_count[TaxTreeBuilder.ROOT_LABEL] = 0;
         k = 0
         added = 0
         seq_ids = []
@@ -333,7 +376,7 @@ class TaxTreeBuilder:
             parent_level = tax_seq_level - 1            
             while ranks[parent_level] == Taxonomy.EMPTY_RANK:
                 parent_level -= 1
-            parent_name = ranks[parent_level]
+            parent_name = Taxonomy.get_rank_uid(ranks, parent_level)
             if parent_name in self.tree_nodes:
                 parent_node = self.tree_nodes[parent_name]
                 # filter by max number of seqs (threshold depends from rank level, 

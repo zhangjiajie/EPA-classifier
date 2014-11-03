@@ -20,7 +20,6 @@ class RefTreeBuilder:
         self.epalbl_job_name = self.cfg.subst_name("epalbl_%NAME%")
         self.optmod_job_name = self.cfg.subst_name("optmod_%NAME%")
         self.raxml_wrapper = RaxmlWrapper(config)
-        self.taxonomy = GGTaxonomyFile(config.taxonomy_fname, EpacConfig.REF_SEQ_PREFIX)
         
         self.outgr_fname = self.cfg.tmp_fname("%NAME%_outgr.tre")
         self.reftree_mfu_fname = self.cfg.tmp_fname("%NAME%_mfu.tre")
@@ -32,55 +31,59 @@ class RefTreeBuilder:
         self.brmap_fname = self.cfg.tmp_fname("%NAME%_map.txt")
 
     def validate_taxonomy(self):
-        # make sure we don't have duplicate rank names
-        action = self.cfg.dup_rank_names
-        autofix = action == "autofix"
-        dups = self.taxonomy.check_for_duplicates(autofix)
-        if len(dups) > 0:
-            if action == "autofix":
-                print "WARNING: %d sequences with duplicate rank names found and were renamed as follows:\n" % len(dups)
-                for dup in dups:
-                    print "Original:    %s\t%s"   %  (dup[0], dup[1])
-                    print "Duplicate:   %s\t%s"   %  (dup[2], dup[3])
-                    print "Renamed to:  %s\t%s\n" %  (dup[2], dup[4])
-            elif action == "skip":
-                print "WARNING: Following %d sequences with duplicate rank names were skipped:\n" % len(dups)
-                for dup in dups:
-                    self.taxonomy.remove_seq(dup[2])
-                    print "%s\t%s\n" % (dup[2], dup[3])
-            else:  # abort
-                print "ERROR: %d sequences with duplicate rank names found:\n" % len(dups)
-                for dup in dups:
-                    print "%s\t%s\n%s\t%s\n" % dup
-                print "Please fix (rename) them and run the pipeline again (or use -dup-rank-names autofix option)" 
-                sys.exit()
-        
         # make sure we don't taxonomy "irregularities" (more than 7 ranks or missing ranks in the middle)
         action = self.cfg.wrong_rank_count
-        autofix = action == "autofix"
-        errs = self.taxonomy.check_for_disbalance(autofix)
-        if len(errs) > 0:
-            if action == "autofix":
-                print "WARNING: %d sequences with invalid annotation (missing/redundant ranks) found and were fixed as follows:\n" % len(errs)
-                for err in errs:
-                    print "Original:   %s\t%s"   % (err[0], err[1])
-                    print "Fixed as:   %s\t%s\n" % (err[0], err[2])
-            elif action == "skip":
-                print "WARNING: Following %d sequences with invalid annotation (missing/redundant ranks) were skipped:\n" % len(errs)
-                for err in errs:
-                    self.taxonomy.remove_seq(err[0])
-                    print "%s\t%s" % err
-            else:  # abort
-                print "ERROR: %d sequences with invalid annotation (missing/redundant ranks) found:\n" % len(errs)
-                for err in errs:
-                    print "%s\t%s" % err
-                print "\nPlease fix them manually (add/remove ranks) and run the pipeline again (or use -wrong-rank-count autofix option)"
-                print "NOTE: Only standard 7-level taxonomies are supported at the moment. Although missing trailing ranks (e.g. species) are allowed,"
-                print "missing intermediate ranks (e.g. family) or sublevels (e.g. suborder) are not!\n"
-                sys.exit()
-                
-        # final touch - add prefixes, remove spaces etc. 
+        if action != "ignore":
+            autofix = action == "autofix"
+            errs = self.taxonomy.check_for_disbalance(autofix)
+            if len(errs) > 0:
+                if action == "autofix":
+                    print "WARNING: %d sequences with invalid annotation (missing/redundant ranks) found and were fixed as follows:\n" % len(errs)
+                    for err in errs:
+                        print "Original:   %s\t%s"   % (err[0], err[1])
+                        print "Fixed as:   %s\t%s\n" % (err[0], err[2])
+                elif action == "skip":
+                    print "WARNING: Following %d sequences with invalid annotation (missing/redundant ranks) were skipped:\n" % len(errs)
+                    for err in errs:
+                        self.taxonomy.remove_seq(err[0])
+                        print "%s\t%s" % err
+                else:  # abort
+                    print "ERROR: %d sequences with invalid annotation (missing/redundant ranks) found:\n" % len(errs)
+                    for err in errs:
+                        print "%s\t%s" % err
+                    print "\nPlease fix them manually (add/remove ranks) and run the pipeline again (or use -wrong-rank-count autofix option)"
+                    print "NOTE: Only standard 7-level taxonomies are supported at the moment. Although missing trailing ranks (e.g. species) are allowed,"
+                    print "missing intermediate ranks (e.g. family) or sublevels (e.g. suborder) are not!\n"
+                    sys.exit()
+
+        # check for duplicate rank names
+        action = self.cfg.dup_rank_names
+        if action != "ignore":
+            autofix = action == "autofix"
+            dups = self.taxonomy.check_for_duplicates(autofix)
+            if len(dups) > 0:
+                if action == "autofix":
+                    print "WARNING: %d sequences with duplicate rank names found and were renamed as follows:\n" % len(dups)
+                    for dup in dups:
+                        print "Original:    %s\t%s"   %  (dup[0], dup[1])
+                        print "Duplicate:   %s\t%s"   %  (dup[2], dup[3])
+                        print "Renamed to:  %s\t%s\n" %  (dup[2], dup[4])
+                elif action == "skip":
+                    print "WARNING: Following %d sequences with duplicate rank names were skipped:\n" % len(dups)
+                    for dup in dups:
+                        self.taxonomy.remove_seq(dup[2])
+                        print "%s\t%s\n" % (dup[2], dup[3])
+                else:  # abort
+                    print "ERROR: %d sequences with duplicate rank names found:\n" % len(dups)
+                    for dup in dups:
+                        print "%s\t%s\n%s\t%s\n" % dup
+                    print "Please fix (rename) them and run the pipeline again (or use -dup-rank-names autofix option)" 
+                    sys.exit()
+        
+        # check for invalid characters in rank names
         self.taxonomy.normalize_rank_names()
+        
+        self.taxonomy.close_taxonomy_gaps()
 
     def build_multif_tree(self):
         c = self.cfg
@@ -191,7 +194,9 @@ class RefTreeBuilder:
 
             # RAxML call to optimize model parameters and write them down to the binary model file
             print "\nOptimizing model parameters: \n"
-            raxml_params = ["-f", "e", "-s", self.reduced_refalign_fname, "-t", bfu_fname, "-H", "--no-seq-check"]
+            raxml_params = ["-f", "e", "-s", self.reduced_refalign_fname, "-t", bfu_fname, "--no-seq-check"]
+            if self.cfg.raxml_model == "GTRCAT" and not self.cfg.compress_patterns:
+                raxml_params +=  ["-H"]
             self.invocation_raxml_optmod = self.raxml_wrapper.run(self.optmod_job_name, raxml_params)
             if self.raxml_wrapper.result_exists(self.optmod_job_name):
                 self.raxml_wrapper.copy_result_tree(self.optmod_job_name, self.reftree_bfu_fname)
@@ -416,6 +421,8 @@ class RefTreeBuilder:
         jw.set_tree(self.reftree_lbl_str)
         jw.set_outgroup(self.reftree_outgroup)
         jw.set_ratehet_model(self.cfg.raxml_model)
+        jw.set_tax_tree(self.reftree_multif)
+        jw.set_pattern_compression(self.cfg.compress_patterns)
 
         mdata = { "ref_tree_size": self.reftree_size, 
                   "ref_alignment_width": self.refalign_width,
@@ -459,7 +466,9 @@ class RefTreeBuilder:
 
     # top-level function to build a reference tree    
     def build_ref_tree(self):
-        print "\n=> Building a multifurcating tree from taxonomy: %s (%d seqs)...\n" % (self.cfg.taxonomy_fname, self.taxonomy.seq_count())
+        print "\n> Loading taxonomy from file: %s ...\n" % (self.cfg.taxonomy_fname)
+        self.taxonomy = GGTaxonomyFile(self.cfg.taxonomy_fname, EpacConfig.REF_SEQ_PREFIX)
+        print "\n=> Building a multifurcating tree from taxonomy with %d seqs ...\n" % self.taxonomy.seq_count()
         self.validate_taxonomy()
         self.build_multif_tree()
         print "\n==> Building the reference alignment " + "...\n"
@@ -481,9 +490,9 @@ class RefTreeBuilder:
         self.calc_node_heights()
         
         if self.cfg.verbose:
-			print "\n=========> Checking branch labels ...\n"
-			print "shared rank names before training: " + repr(self.taxonomy.get_common_ranks())
-			print "shared rank names after  training: " + repr(self.mono_index())
+            print "\n=========> Checking branch labels ...\n"
+            print "shared rank names before training: " + repr(self.taxonomy.get_common_ranks())
+            print "shared rank names after  training: " + repr(self.mono_index())
         
         print "\n=========> Saving the reference JSON file" + "...\n"
         self.write_json()
@@ -505,6 +514,8 @@ information needed for taxonomic placement of query sequences.""")
             help="""Specify the number of CPUs.  Default: 2""")            
     parser.add_argument("-c", dest="config_fname", default=None,
             help="""Config file name.""")
+    parser.add_argument("-C", dest="compress_patterns", default=False, action="store_true",
+            help="""Enable pattern compression during model optimization under GTRCAT. Default: FALSE""")
     parser.add_argument("-n", dest="output_name", default=None,
             help="""Run name.""")
     parser.add_argument("-v", dest="verbose", action="store_true",
@@ -513,16 +524,20 @@ information needed for taxonomic placement of query sequences.""")
             help="""Debug mode, intermediate files will not be cleaned up.""")
     parser.add_argument("-no-hmmer", dest="no_hmmer", action="store_true",
             help="""Do not build HMMER profile.""")
-    parser.add_argument("-dup-rank-names", dest="dup_rank_names", choices=["abort", "skip", "autofix"],
-            default="autofix", help="""Action to be performed if different ranks with same name are found: 
+    parser.add_argument("-dup-rank-names", dest="dup_rank_names", choices=["ignore", "abort", "skip", "autofix"],
+            default="ignore", help="""Action to be performed if different ranks with same name are found: 
+            ignore      do nothing
             abort       report duplicates and exit
             skip        skip the corresponding sequences (exlude from reference)
-            autofix	make name unique by concatenating it with the parent rank's name""")
-    parser.add_argument("-wrong-rank-count", dest="wrong_rank_count", choices=["abort", "skip", "autofix"],
-            default="abort", help="""Action to be performed if lineage has less (more) than 7 ranks
+            autofix     make name unique by concatenating it with the parent rank's name""")
+    parser.add_argument("-wrong-rank-count", dest="wrong_rank_count", choices=["ignore", "abort", "skip", "autofix"],
+            default="ignore", help="""Action to be performed if lineage has less (more) than 7 ranks
+            ignore      do nothing
             abort       report duplicates and exit
             skip        skip the corresponding sequences (exlude from reference)
-            autofix	try to guess wich ranks should be added or removed (use with caution!)""")
+            autofix     try to guess wich ranks should be added or removed (use with caution!)""")
+    parser.add_argument("-tmpdir", dest="temp_dir", default=None,
+            help="""Directory for temporary files.""")
     
     if len(sys.argv) < 4:
         parser.print_help()

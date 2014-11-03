@@ -45,7 +45,10 @@ class EpacConfig:
         self.basepath = os.path.dirname(os.path.abspath(__file__))
         self.epac_home = os.path.abspath(os.path.join(self.basepath, os.pardir)) + "/"
         self.reftree_home = os.path.abspath("reftree/") + "/"
-        self.temp_dir = self.basepath + "/tmp/"
+        if args.temp_dir:
+            self.temp_dir = args.temp_dir + "/"
+        else:
+            self.temp_dir = self.basepath + "/tmp/"
         self.raxml_outdir = self.temp_dir #"raxml_output/"
         self.raxml_outdir_abs = os.path.abspath(self.raxml_outdir)
         self.results_home = os.path.abspath("results/") + "/"
@@ -79,6 +82,7 @@ class EpacConfig:
         self.epa_heur_rate = 0.01
         self.min_confidence = 0.2
         self.num_threads = 2
+        self.compress_patterns = False
 
     def resolve_auto_settings(self, tree_size):
         if self.raxml_model == "AUTO":
@@ -160,12 +164,13 @@ class EpacConfig:
 class EpacTrainerConfig(EpacConfig):
     
     def __init__(self, args):
+        EpacConfig.__init__(self, args)
         self.taxonomy_fname = args.taxonomy_fname
         self.align_fname = args.align_fname
         self.no_hmmer = args.no_hmmer
         self.dup_rank_names  = args.dup_rank_names
         self.wrong_rank_count  = args.wrong_rank_count
-        EpacConfig.__init__(self, args)
+        self.compress_patterns = args.compress_patterns
         
     def set_defaults(self):
         EpacConfig.set_defaults(self)

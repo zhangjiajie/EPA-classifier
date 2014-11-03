@@ -11,6 +11,7 @@ try:
     from epac.raxml_util import RaxmlWrapper, FileUtils
     from epac.json_util import RefJsonParser, RefJsonChecker, EpaJsonParser
     from epac.taxonomy_util import Taxonomy,GGTaxonomyFile
+    from epac.classify_util import TaxClassifyHelper
 except ImportError, e:
     print("Some packages are missing, please re-downloand EPA-classifier")
     print e
@@ -20,8 +21,20 @@ except ImportError, e:
 class LeaveOneTest:
     def __init__(self, config, args):
         self.cfg = config
+        self.method = args.method
+        self.minlw = args.min_lhw
+        self.jplace_fname = args.jplace_fname
+        self.ranktest = args.ranktest
+        self.output_fname = args.output_dir + "/" + args.output_name
+
+        self.tmp_refaln = config.tmp_fname("%NAME%.refaln")
+        self.reftree_lbl_fname = config.tmp_fname("%NAME%_lbl.tre")
+        self.reftree_tax_fname = config.tmp_fname("%NAME%_tax.tre")
+        self.optmod_fname = self.cfg.tmp_fname("%NAME%.opt")
+        self.reftree_fname = self.cfg.tmp_fname("ref_%NAME%.tre")
+
         try:
-            self.refjson = RefJsonParser(config.refjson_fname)
+            self.refjson = RefJsonParser(config.refjson_fname, ver="1.2")
         except ValueError:
             print("Invalid json file format!")
             sys.exit()
@@ -29,256 +42,13 @@ class LeaveOneTest:
         self.refjson.validate()
         self.rate = self.refjson.get_rate()
         self.node_height = self.refjson.get_node_height()
-        self.tmp_refaln = config.tmp_fname("%NAME%.refaln")
-        self.reftree_lbl_fname = config.tmp_fname("%NAME%_lbl.tre")
-        self.reftree_tax_fname = config.tmp_fname("%NAME%_tax.tre")
-        self.seqs = None
-        self.TAXONOMY_RANKS_COUNT = 7
-
-        self.output_fname = args.output_dir + "/" + args.output_name
-        self.method = args.method
-        self.minlw = args.min_lhw
-        self.jplace_fname = args.jplace_fname
-        self.mislabels = []
-        self.mislabels_cnt = [0] * self.TAXONOMY_RANKS_COUNT
-
-    def cleanup(self):
-        FileUtils.remove_if_exists(self.tmp_refaln)
-
-    def classify_seq(self, placement):
-        edges = placement["p"]
-        if len(edges) > 0:
-            if self.method == "1":
-                ranks, lws = self.assign_taxonomy_maxsum(edges, self.minlw)
-            else:
-                ranks, lws = self.assign_taxonomy(edges)
-            return ranks, lws
-        else:
-            print "ERROR: no placements! something is definitely wrong!"
-
-    def rank_level_name(self, rank_level):
-        return { 0: "Kingdom",
-                 1: "Phylum",
-                 2: "Class",
-                 3: "Order",
-                 4: "Family",
-                 5: "Genus",
-                 6: "Species"
-                }[rank_level]
-        
-    def check_tax_labels(self, seq_name, ranks, lws):
-        orig_ranks = self.origin_taxonomy[seq_name]
-        mislabel_lvl = -1
-        for rank_lvl in range(self.TAXONOMY_RANKS_COUNT):
-            if ranks[rank_lvl] != Taxonomy.EMPTY_RANK and ranks[rank_lvl] != orig_ranks[rank_lvl]:
-                mislabel_lvl = rank_lvl
-                break
-
-        if mislabel_lvl >= 0:
-            mis_rec = {}
-            mis_rec['name'] = seq_name.lstrip(EpacConfig.REF_SEQ_PREFIX)
-            mis_rec['level'] = mislabel_lvl
-            mis_rec['inv_level'] = -1 * mislabel_lvl  # just for sorting
-            mis_rec['orig_ranks'] = GGTaxonomyFile.strip_prefix(orig_ranks)
-            mis_rec['ranks'] = GGTaxonomyFile.strip_prefix(ranks)
-            mis_rec['lws'] = lws
-            mis_rec['conf'] = lws[mislabel_lvl]
-            self.mislabels.append(mis_rec)
-
-            for i in range(mislabel_lvl, self.TAXONOMY_RANKS_COUNT):
-                self.mislabels_cnt[i] += 1
-
-    def mis_rec_to_string_old(self, mis_rec):
-        lvl = mis_rec['level']
-        output = mis_rec['name'] + "\t"
-        output += "%s\t%s\t%s\t%.3f\n" % (self.rank_level_name(lvl), 
-            mis_rec['orig_ranks'][lvl], mis_rec['ranks'][lvl], mis_rec['lws'][lvl])
-        output += ";".join(mis_rec['orig_ranks']) + "\n"
-        output += ";".join(mis_rec['ranks']) + "\n"
-        output += "\t".join(["%.3f" % conf for conf in mis_rec['lws']]) + "\n"
-        return output
-
-    def mis_rec_to_string(self, mis_rec):
-        lvl = mis_rec['level']
-        output = mis_rec['name'] + "\t"
-        output += "%s\t%s\t%s\t%.3f\t" % (self.rank_level_name(lvl), 
-            mis_rec['orig_ranks'][lvl], mis_rec['ranks'][lvl], mis_rec['lws'][lvl])
-        output += Taxonomy.lineage_str(mis_rec['orig_ranks']) + "\t"
-        output += Taxonomy.lineage_str(mis_rec['ranks']) + "\t"
-        output += ";".join(["%.3f" % conf for conf in mis_rec['lws']])
-        return output
-
-    def sort_mislabels(self):
-        self.mislabels = sorted(self.mislabels, key=itemgetter('inv_level', 'conf'), reverse=True)
-    
-    def write_mislabels(self):
-        with open("%s.mis" % self.output_fname, "w") as fo_all:
-	    fields = ["SeqID", "MislabeledRank", "OriginalLabel", "ProposedLabel", "Confidence", "OriginalTaxonomyPath", "ProposedTaxonomyPath", "PerRankConfidence"]
-	    fo_all.write(";" + "\t".join(fields) + "\n")
-            for mis_rec in self.mislabels:
-                output = self.mis_rec_to_string(mis_rec)            
-                fo_all.write(output + "\n")
-                if self.cfg.verbose:
-                    print(output) 
-
-        print "Mislabels counts by ranks:"        
-        with open("%s.stats" % self.output_fname, "w") as fo_stat:
-            for i in range(self.TAXONOMY_RANKS_COUNT):
-                output = "%s: %d" % (self.rank_level_name(i), self.mislabels_cnt[i])            
-                fo_stat.write(output + "\n")
-                print(output) 
-
-    def write_sorted_map(self, fname, out_map):
-        total = sum(out_map.itervalues())
-        
-        sorted_map = [(k,v) for v,k in reversed(sorted(
-                 [(v,k) for k,v in out_map.items()]
-                 ))
-              ]       
-
-        with open(fname, "w") as fout:
-            for key, value in sorted_map:
-                fout.write("%s: %d %f\n" % (key, value, float(value) / total))
-        
-   
-    def assign_taxonomy(self, edges):
-        #Calculate the sum of likelihood weight for each rank
-        taxonmy_sumlw_map = {}
-        for edge in edges:
-            edge_nr = str(edge[0])
-            lw = edge[2]
-            taxonomy = self.bid_taxonomy_map[edge_nr]
-            for rank in taxonomy:
-                if rank == "-":
-                    taxonmy_sumlw_map[rank] = -1
-                elif rank in taxonmy_sumlw_map:
-                    oldlw = taxonmy_sumlw_map[rank]
-                    taxonmy_sumlw_map[rank] = oldlw + lw
-                else:
-                    taxonmy_sumlw_map[rank] = lw
-        
-        #Assignment using the max likelihood placement
-        ml_edge = edges[0]
-        edge_nr = str(ml_edge[0])
-        maxlw = ml_edge[2]
-        ml_ranks = self.bid_taxonomy_map[edge_nr]
-        ml_ranks_copy = []
-        for rk in ml_ranks:
-            ml_ranks_copy.append(rk)
-        lws = []
-        cnt = 0
-        for rank in ml_ranks:
-            lw = taxonmy_sumlw_map[rank]
-            if lw > 1.0:
-                lw = 1.0
-            lws.append(lw)
-            if rank == "-" and cnt > 0 :                
-                for edge in edges[1:]:
-                    edge_nr = str(edge[0])
-                    taxonomy = self.bid_taxonomy_map[edge_nr]
-                    newrank = taxonomy[cnt]
-                    newlw = taxonmy_sumlw_map[newrank]
-                    higherrank_old = ml_ranks[cnt -1]
-                    higherrank_new = taxonomy[cnt -1]
-                    if higherrank_old == higherrank_new and newrank!="-":
-                        ml_ranks_copy[cnt] = newrank
-                        lws[cnt] = newlw
-            cnt = cnt + 1
-            
-        return ml_ranks_copy, lws
-
-    def assign_taxonomy_maxsum(self, edges, minlw = 0.):
-        """this function sums up all LH-weights for each rank and takes the rank with the max. sum """
-        # in EPA result, each placement(=branch) has a "weight"
-        # since we are interested in taxonomic placement, we do not care about branch vs. branch comparisons,
-        # but only consider rank vs. rank (e. g. G1 S1 vs. G1 S2 vs. G1)
-        # Thus we accumulate weights for each rank, there are to measures:
-        # "own" weight  = sum of weight of all placements EXACTLY to this rank (e.g. for G1: G1 only)
-        # "total" rank  = own rank + own rank of all children (for G1: G1 or G1 S1 or G1 S2)
-        rw_own = {}
-        rw_total = {}
-        rb = {}
-        
-        for edge in edges:
-            br_id = str(edge[0])
-            lweight = edge[2]
-            lowest_rank = None
-
-            if lweight == 0.:
-                continue
-            
-            # accumulate weight for the current sequence                
-            ranks = self.bid_taxonomy_map[br_id]
-            for i in range(len(ranks)):
-                rank = ranks[i]
-                if rank != Taxonomy.EMPTY_RANK:
-                    rw_total[rank] = rw_total.get(rank, 0) + lweight
-                    lowest_rank = rank
-                    if not rank in rb:
-                        rb[rank] = br_id
-                else:
-                    break
-
-            if lowest_rank:
-                rw_own[lowest_rank] = rw_own.get(lowest_rank, 0) + lweight
-                rb[lowest_rank] = br_id
-            elif self.cfg.verbose:
-                print "WARNING: no annotation for branch ", br_id
-            
-
-        # we assign the sequence to a rank, which has the max "own" weight AND 
-        # whose "total" weight is greater than a confidence threshold
-        max_rw = 0.
-        s_r = None
-        for r in rw_own.iterkeys():
-            if rw_own[r] > max_rw and rw_total[r] >= minlw:
-                s_r = r
-                max_rw = rw_own[r] 
-        if not s_r:
-            s_r = max(rw_total.iterkeys(), key=(lambda key: rw_total[key]))
-
-        a_br_id = rb[s_r]
-        a_ranks = self.bid_taxonomy_map[a_br_id]
-
-        # "total" weight is considered as confidence value for now
-        a_conf = [0.] * len(a_ranks)
-        for i in range(len(a_conf)):
-            rank = a_ranks[i]
-            if rank != Taxonomy.EMPTY_RANK:
-                a_conf[i] = rw_total[rank]
-
-        return a_ranks, a_conf
-
-    def run_raxml_leave_test(self):
-        job_name = self.cfg.subst_name("epa_%NAME%")
-        if self.jplace_fname:
-            jp = EpaJsonParser(self.jplace_fname)
-        else:        
-            jp = self.raxml.run_epa(job_name, self.refalign_fname, self.reftree_fname, self.optmod_fname, leave_one_test=True)
-
-        placements = jp.get_placement()
-        seq_count = 0
-        for place in placements:
-#            print "Placement # %d" % (seq_count + 1)
-            seq_name = place["n"][0]
-            ranks, lws = self.classify_seq(place)
-            self.check_tax_labels(seq_name, ranks, lws)
-            seq_count += 1
-
-        return seq_count    
-
-    def run_test(self, raxml_mode = True):
-        self.raxml = RaxmlWrapper(config)
-        self.refalign_fname = self.refjson.get_alignment(fout = self.tmp_refaln)        
-        self.optmod_fname = self.cfg.tmp_fname("%NAME%.opt")
-        self.refjson.get_binary_model(self.optmod_fname)
         self.origin_taxonomy = self.refjson.get_origin_taxonomy()
-        self.orig_bid_taxonomy_map = self.refjson.get_bid_tanomomy_map()
-        self.reftree_fname = self.cfg.tmp_fname("ref_%NAME%.tre")
+        self.bid_taxonomy_map = self.refjson.get_bid_tanomomy_map()
+        self.tax_tree = self.refjson.get_tax_tree()
+        self.cfg.compress_patterns = self.refjson.get_pattern_compression()
 
         reftree_str = self.refjson.get_raxml_readable_tree()
         reftree = Tree(reftree_str)
-
         self.reftree_size = len(reftree.get_leaves())
 
         # IMPORTANT: set EPA heuristic rate based on tree size!                
@@ -286,20 +56,327 @@ class LeaveOneTest:
         # If we're loading the pre-optimized model, we MUST set the same rate het. mode as in the ref file        
         if self.cfg.epa_load_optmod:
             self.cfg.raxml_model = self.refjson.get_ratehet_model()
+        
+        self.classify_helper = TaxClassifyHelper(self.cfg, self.bid_taxonomy_map)
+
+        self.TAXONOMY_RANKS_COUNT = 10
+        self.mislabels = []
+        self.mislabels_cnt = [0] * self.TAXONOMY_RANKS_COUNT
+        self.rank_mislabels = []
+        self.rank_mislabels_cnt = [0] * self.TAXONOMY_RANKS_COUNT
+        self.misrank_conf_map = {}
+
+    def cleanup(self):
+        FileUtils.remove_if_exists(self.tmp_refaln)
+
+    def classify_seq(self, placement):
+        edges = placement["p"]
+        if len(edges) > 0:
+            return self.classify_helper.classify_seq(edges, self.method, self.minlw)
+        else:
+            print "ERROR: no placements! something is definitely wrong!"
+
+    def rank_level_name(self, uni_rank_level):
+        return { 0:  ("?__", "Unknown"),
+                 1: ("k__", "Kingdom"),
+                 2: ("p__", "Phylum"),
+                 3: ("c__", "Class"),
+                 4: ("d__", "Subclass"),
+                 5: ("o__", "Order"),
+                 6: ("n__", "Suborder"),
+                 7: ("f__", "Family"),
+                 8: ("g__", "Genus"),
+                 9: ("s__", "Species")
+                }[uni_rank_level]
+                
+    def guess_rank_level(self, ranks, rank_level):
+        rank_name = ranks[rank_level]
+        
+        real_level = 0
+        
+        # check common prefixes and suffixes
+        if rank_name.startswith("k__") or rank_name.lower() in ["bacteria", "archaea", "eukaryota"]:
+            real_level = 1
+        elif rank_name.startswith("p__"):
+            real_level = 2
+        elif rank_name.startswith("c__"):
+            real_level = 3
+        elif rank_name.endswith("dae"):
+            real_level = 4
+        elif rank_name.startswith("o__") or rank_name.endswith("ales"):
+            real_level = 5
+        elif rank_name.endswith("neae"):
+            real_level = 6
+        elif rank_name.startswith("f__") or rank_name.endswith("ceae"):
+            real_level = 7
+        elif rank_name.startswith("g__"):
+            real_level = 8
+        elif rank_name.startswith("s__"):
+            real_level = 9
+            
+        if real_level == 0:
+            if rank_level == 0:    # kingdom
+                real_level = 1
+            else:
+                parent_level = self.guess_rank_level(ranks, rank_level-1)
+                real_level = parent_level + 1
+                if len(ranks) < 8 and (real_level in [4,6]):
+                    real_level += 1
+                             
+        return real_level
+         
+    def guess_rank_level_name(self, ranks, rank_level):
+        real_level = self.guess_rank_level(ranks, rank_level)
+        return self.rank_level_name(real_level)
+        
+    def check_seq_tax_labels(self, seq_name, orig_ranks, ranks, lws):
+        mislabel_lvl = -1
+        min_len = min(len(orig_ranks),len(ranks))
+        for rank_lvl in range(min_len):
+            if ranks[rank_lvl] != Taxonomy.EMPTY_RANK and ranks[rank_lvl] != orig_ranks[rank_lvl]:
+                mislabel_lvl = rank_lvl
+                break
+
+        if mislabel_lvl >= 0:
+            real_lvl = self.guess_rank_level(orig_ranks, mislabel_lvl)
+            mis_rec = {}
+            mis_rec['name'] = seq_name.lstrip(EpacConfig.REF_SEQ_PREFIX)
+            mis_rec['orig_level'] = mislabel_lvl
+            mis_rec['real_level'] = real_lvl
+            mis_rec['level_name'] = self.rank_level_name(real_lvl)[1]
+            mis_rec['inv_level'] = -1 * real_lvl  # just for sorting
+            mis_rec['orig_ranks'] = orig_ranks
+            mis_rec['ranks'] = ranks
+            mis_rec['lws'] = lws
+            mis_rec['conf'] = lws[mislabel_lvl]
+            self.mislabels.append(mis_rec)
+            self.mislabels_cnt[real_lvl] += 1
+            
+            return mis_rec
+        else:
+            return None
+
+    def check_rank_tax_labels(self, rank_name, orig_ranks, ranks, lws):
+        mislabel_lvl = -1
+        min_len = min(len(orig_ranks),len(ranks))
+        for rank_lvl in range(min_len):
+            if ranks[rank_lvl] != Taxonomy.EMPTY_RANK and ranks[rank_lvl] != orig_ranks[rank_lvl]:
+                mislabel_lvl = rank_lvl
+                break
+
+        if mislabel_lvl >= 0:
+            real_lvl = self.guess_rank_level(orig_ranks, mislabel_lvl)
+            mis_rec = {}
+            mis_rec['name'] = rank_name
+            mis_rec['orig_level'] = mislabel_lvl
+            mis_rec['real_level'] = real_lvl
+            mis_rec['level_name'] = self.rank_level_name(real_lvl)[1]
+            mis_rec['inv_level'] = -1 * real_lvl  # just for sorting
+            mis_rec['orig_ranks'] = orig_ranks
+            mis_rec['ranks'] = ranks
+            mis_rec['lws'] = lws
+            mis_rec['conf'] = lws[mislabel_lvl]
+            self.rank_mislabels.append(mis_rec)
+            self.rank_mislabels_cnt[real_lvl] += 1
+                
+            return mis_rec
+        else:
+            return None                
+
+    def mis_rec_to_string_old(self, mis_rec):
+        lvl = mis_rec['orig_level']
+        output = mis_rec['name'] + "\t"
+        output += "%s\t%s\t%s\t%.3f\n" % (mis_rec['level_name'], 
+            mis_rec['orig_ranks'][lvl], mis_rec['ranks'][lvl], mis_rec['lws'][lvl])
+        output += ";".join(mis_rec['orig_ranks']) + "\n"
+        output += ";".join(mis_rec['ranks']) + "\n"
+        output += "\t".join(["%.3f" % conf for conf in mis_rec['lws']]) + "\n"
+        return output
+
+    def mis_rec_to_string(self, mis_rec):
+        lvl = mis_rec['orig_level']
+        output = mis_rec['name'] + "\t"
+        output += "%s\t%s\t%s\t%.3f\t" % (mis_rec['level_name'], 
+            mis_rec['orig_ranks'][lvl], mis_rec['ranks'][lvl], mis_rec['lws'][lvl])
+        output += Taxonomy.lineage_str(mis_rec['orig_ranks']) + "\t"
+        output += Taxonomy.lineage_str(mis_rec['ranks']) + "\t"
+        output += ";".join(["%.3f" % conf for conf in mis_rec['lws']])
+        if 'rank_conf' in mis_rec:
+            output += "\t%.3f" % mis_rec['rank_conf']
+        return output
+
+    def sort_mislabels(self):
+        self.mislabels = sorted(self.mislabels, key=itemgetter('inv_level', 'conf'), reverse=True)
+        if self.ranktest:
+            self.rank_mislabels = sorted(self.rank_mislabels, key=itemgetter('inv_level', 'conf'), reverse=True)
+    
+    def write_mislabels(self):
+        with open("%s.mis" % self.output_fname, "w") as fo_all:
+            fields = ["SeqID", "MislabeledLevel", "OriginalLabel", "ProposedLabel", "Confidence", "OriginalTaxonomyPath", "ProposedTaxonomyPath", "PerRankConfidence"]
+            if self.ranktest:
+                fields += ["HigherRankMisplacedConfidence"]
+            header = ";" + "\t".join(fields) + "\n"
+            fo_all.write(header)
+            if self.cfg.verbose and len(self.mislabels) > 0:
+                print "Mislabeled sequences:\n"
+                print header 
+            for mis_rec in self.mislabels:
+                output = self.mis_rec_to_string(mis_rec)  + "\n"
+                fo_all.write(output)
+                if self.cfg.verbose:
+                    print(output) 
+
+        if self.ranktest:
+            with open("%s.misrank" % self.output_fname, "w") as fo_all:
+                fields = ["RankID", "MislabeledLevel", "OriginalLabel", "ProposedLabel", "Confidence", "OriginalTaxonomyPath", "ProposedTaxonomyPath", "PerRankConfidence"]
+                header = ";" + "\t".join(fields)  + "\n"
+                fo_all.write(header)
+                if self.cfg.verbose  and len(self.rank_mislabels) > 0:
+                    print "\nMislabeled higher ranks:\n"
+                    print header 
+                for mis_rec in self.rank_mislabels:
+                    output = self.mis_rec_to_string(mis_rec) + "\n"
+                    fo_all.write(output)
+                    if self.cfg.verbose:
+                        print(output) 
+
+        print "Mislabels counts by ranks:"        
+        with open("%s.stats" % self.output_fname, "w") as fo_stat:
+            seq_sum = 0
+            rank_sum = 0
+            for i in range(1, self.TAXONOMY_RANKS_COUNT):
+                rname = self.rank_level_name(i)[1].ljust(10)
+                if self.mislabels_cnt[i] > 0 or i not in [4,6]:
+                    seq_sum += self.mislabels_cnt[i]
+                    output = "%s:\t%d" % (rname, seq_sum)
+                    if self.ranktest:
+                        rank_sum += self.rank_mislabels_cnt[i]
+                        output += "\t%d" % rank_sum
+                    fo_stat.write(output + "\n")
+                    print(output) 
+       
+    def run_leave_seq_out_test(self):
+        job_name = self.cfg.subst_name("epa_%NAME%")
+        if self.jplace_fname:
+            jp = EpaJsonParser(self.jplace_fname)
+        else:        
+            jp = self.raxml.run_epa(job_name, self.refalign_fname, self.reftree_fname, self.optmod_fname, mode="l1o_seq")
+
+        placements = jp.get_placement()
+        seq_count = 0
+        for place in placements:
+            seq_name = place["n"][0]
+            
+            # get original taxonomic label
+            nodes = self.tax_tree.get_leaves_by_name(seq_name)
+            if len(nodes) != 1:
+                print "FATAL ERROR: Sequence %s is not found in the taxonomic tree, or is present more than once!" % seq_name
+                sys.exit()
+            seq_node = nodes[0]
+            orig_ranks = Taxonomy.split_rank_uid(seq_node.up.name)
+
+            # get EPA tax label
+            ranks, lws = self.classify_seq(place)
+            # check if they match
+            mis_rec = self.check_seq_tax_labels(seq_name, orig_ranks, ranks, lws)
+            # cross-check with higher rank mislabels
+            if self.ranktest and mis_rec:
+                rank_conf = 0
+                for lvl in range(2,len(orig_ranks)):
+                    tax_path = Taxonomy.get_rank_uid(orig_ranks, lvl)
+                    if tax_path in self.misrank_conf_map:
+                        rank_conf = max(rank_conf, self.misrank_conf_map[tax_path])
+                mis_rec['rank_conf'] = rank_conf
+            seq_count += 1
+
+        return seq_count    
+
+    def run_leave_subtree_out_test(self):
+        job_name = self.cfg.subst_name("tree_epa_%NAME%")
+#        if self.jplace_fname:
+#            jp = EpaJsonParser(self.jplace_fname)
+#        else:        
+
+        #create file with subtrees
+        rank_tips = {}
+        rank_parent = {}
+        for node in self.tax_tree.traverse("postorder"):
+            if node.is_leaf() or node.is_root():
+                continue
+            tax_path = node.name
+            ranks = Taxonomy.split_rank_uid(tax_path)
+            rank_lvl = Taxonomy.lowest_assigned_rank_level(ranks)
+            if rank_lvl < 2:
+                continue
+                
+            parent_ranks = Taxonomy.split_rank_uid(node.up.name)
+            parent_lvl = Taxonomy.lowest_assigned_rank_level(parent_ranks)
+            if parent_lvl < 1:
+                continue
+            
+            rank_seqs = node.get_leaf_names()
+            rank_size = len(rank_seqs)
+            if rank_size < 2 or rank_size > self.reftree_size-4:
+                continue
+
+#            print rank_lvl, "\t", tax_path, "\t", rank_seqs, "\n"
+            rank_tips[tax_path] = node.get_leaf_names()
+            rank_parent[tax_path] = parent_ranks
+                
+        subtree_list = rank_tips.items()
+        
+        if len(subtree_list) == 0:
+            return 0
+            
+        subtree_list_file = self.cfg.subst_name("treelist_%NAME%.txt")
+        with open(subtree_list_file, "w") as fout:
+            for rank_name, tips in subtree_list:
+                fout.write("%s\n" % " ".join(tips))
+        
+        jp_list = self.raxml.run_epa(job_name, self.refalign_fname, self.reftree_fname, self.optmod_fname, 
+            mode="l1o_subtree", subtree_fname=subtree_list_file)
+
+        subtree_count = 0
+        for jp in jp_list:
+            placements = jp.get_placement()
+            for place in placements:
+                ranks, lws = self.classify_seq(place)
+                tax_path = subtree_list[subtree_count][0]
+                orig_ranks = Taxonomy.split_rank_uid(tax_path)
+                rank_level = Taxonomy.lowest_assigned_rank_level(orig_ranks)
+                rank_prefix = self.guess_rank_level_name(orig_ranks, rank_level)[0]
+                rank_name = orig_ranks[rank_level]
+                if not rank_name.startswith(rank_prefix):
+                    rank_name = rank_prefix + rank_name
+                parent_ranks = rank_parent[tax_path]
+#                print orig_ranks, "\n", parent_ranks, "\n", ranks, "\n"
+                mis_rec = self.check_rank_tax_labels(rank_name, parent_ranks, ranks, lws)
+                if mis_rec:
+                    self.misrank_conf_map[tax_path] = mis_rec['conf']
+                subtree_count += 1
+
+        return subtree_count    
+
+    def run_test(self, raxml_mode = True):
+        self.raxml = RaxmlWrapper(config)
 
         print "Total sequences: %d\n" % self.reftree_size
 
         self.refjson.get_raxml_readable_tree(self.reftree_fname)
-        self.bid_taxonomy_map = self.orig_bid_taxonomy_map
-        seq_count = self.run_raxml_leave_test()
-        if not self.cfg.debug:
-            FileUtils.remove_if_exists(self.reftree_fname)
+        self.refalign_fname = self.refjson.get_alignment(self.tmp_refaln)        
+        self.refjson.get_binary_model(self.optmod_fname)
+
+        if self.ranktest:
+            subtree_count = self.run_leave_subtree_out_test()
+
+        seq_count = self.run_leave_seq_out_test()
 
         self.sort_mislabels()
         self.write_mislabels()
-        print "\nPercentage of mislabeled sequences: %.2f %%" % (float(self.mislabels_cnt[self.TAXONOMY_RANKS_COUNT-1]) / seq_count * 100)
+        print "\nPercentage of mislabeled sequences: %.2f %%" % (float(len(self.mislabels)) / seq_count * 100)
 
         if not self.cfg.debug:
+            FileUtils.remove_if_exists(self.reftree_fname)
             FileUtils.remove_if_exists(self.optmod_fname)
             FileUtils.remove_if_exists(self.refalign_fname)
 
@@ -338,6 +415,8 @@ def parse_args():
             help="""Assignment method 1 or 2
                     1: Max sum likelihood (default)
                     2: Max likelihood placement""")
+    parser.add_argument("-ranktest", dest="ranktest", action="store_true",
+            help="""Test for misplaced higher ranks.""")
     parser.add_argument("-T", dest="num_threads", type=int, default=None,
             help="""Specify the number of CPUs.  Default: 2""")
     parser.add_argument("-v", dest="verbose", action="store_true",
@@ -348,6 +427,8 @@ def parse_args():
             help="""Do not call RAxML EPA, use existing .jplace file as input instead.""")
     parser.add_argument("-c", dest="config_fname", default=None,
             help="Config file name.")
+    parser.add_argument("-tmpdir", dest="temp_dir", default=None,
+            help="""Directory for temporary files.""")
     args = parser.parse_args()
     return args
 

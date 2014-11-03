@@ -106,6 +106,9 @@ class hmmer:
         while line!="":
             if line.startswith("//"):
                 break
+            elif line.startswith("#=GS"):
+                cnt = 0
+                pass
             elif line.startswith("#"):
                 pass
             elif line.startswith("\n"):
