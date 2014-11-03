@@ -48,17 +48,24 @@ class tree_param:
         """ETE2 prune() function is extremely slow on large trees, so
         this function don't use it and instead just removes "redundant"
         species-level nodes one-by-one"""
+
         species = set()
         root = Tree(self.tree)
+
+        name2node = {}
+        for node in root.traverse(strategy = "postorder"):
+          if node.is_leaf():
+              name2node[node.name] = node
+
         #pruning the input tree such that each species only appear once
         for name in self.taxonomy.keys():
             ranks = self.taxonomy[name]
             sp = ranks[-1]
             if sp != "-":
                 if sp in species:
-                    nodes = root.get_leaves_by_name(name)
-                    if len(nodes) == 1:
-                        nodes[0].delete(preserve_branch_length=True)
+                    node = name2node.get(name, None)
+                    if node:
+                        node.delete(preserve_branch_length=True)
                     else:
                         raise ValueError("Node names not found in the tree: " + name)
                 else:
