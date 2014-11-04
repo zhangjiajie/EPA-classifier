@@ -358,7 +358,7 @@ class LeaveOneTest:
         return subtree_count    
 
     def run_test(self, raxml_mode = True):
-        self.raxml = RaxmlWrapper(config)
+        self.raxml = RaxmlWrapper(self.cfg)
 
         print "Total sequences: %d\n" % self.reftree_size
 
