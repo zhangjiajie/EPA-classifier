@@ -185,6 +185,10 @@ class RefTreeBuilder:
         
         print "\nResolving multifurcation: \n"
         raxml_params = ["-s", self.reduced_refalign_fname, "-g", self.reftree_mfu_fname, "-F", "--no-seq-check"]
+        if self.cfg.mfresolv_method  == "fast":
+            raxml_params += ["-D"]
+        elif self.cfg.mfresolv_method  == "ultrafast":
+            raxml_params += ["-f", "e"]
         self.invocation_raxml_multif = self.raxml_wrapper.run(self.mfresolv_job_name, raxml_params)
         if self.raxml_wrapper.result_exists(self.mfresolv_job_name):        
 #            self.raxml_wrapper.copy_result_tree(self.mfresolv_job_name, self.reftree_bfu_fname)
@@ -518,6 +522,11 @@ information needed for taxonomic placement of query sequences.""")
             help="""Enable pattern compression during model optimization under GTRCAT. Default: FALSE""")
     parser.add_argument("-n", dest="output_name", default=None,
             help="""Run name.""")
+    parser.add_argument("-m", dest="mfresolv_method", choices=["thorough", "fast", "ultrafast"],
+            default="thorough", help="""Method of multifurcation resolution: 
+            thorough    use stardard constrainted RAxML tree search (default)
+            fast        use RF distance as search convergence criterion (RAxML -D option)
+            ultrafast   optimize model+branch lengths only (RAxML -f e option)""")
     parser.add_argument("-v", dest="verbose", action="store_true",
             help="""Print additional info messages to the console.""")
     parser.add_argument("-debug", dest="debug", action="store_true",

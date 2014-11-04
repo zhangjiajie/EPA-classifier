@@ -171,6 +171,7 @@ class EpacTrainerConfig(EpacConfig):
         self.dup_rank_names  = args.dup_rank_names
         self.wrong_rank_count  = args.wrong_rank_count
         self.compress_patterns = args.compress_patterns
+        self.mfresolv_method = args.mfresolv_method
         
     def set_defaults(self):
         EpacConfig.set_defaults(self)
