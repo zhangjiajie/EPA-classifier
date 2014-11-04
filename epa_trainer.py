@@ -567,10 +567,18 @@ def check_args(args):
         print "ERROR: Alignment file not found: %s" % args.align_fname
         sys.exit()
 
-    #check if reference tree file already exists
+    #check if reference json file already exists
     if os.path.isfile(args.ref_fname):
         print "ERROR: Reference tree file already exists: %s" % args.ref_fname
         print "Please delete it explicitely if you want to overwrite."
+        sys.exit()
+    
+    #check if reference file can be created
+    try:
+        f = open(args.ref_fname, "w")
+    except:
+        print "ERROR: cannot create output file: %s" % args.ref_fname
+        print "Please check if directory %s exists and you have write permissions for it." % os.path.split(os.path.abspath(args.ref_fname))[0]
         sys.exit()
 
 # -------
