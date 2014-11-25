@@ -4,6 +4,7 @@ import sys
 import os
 import shutil
 import datetime
+import time
 from epac.ete2 import Tree, SeqGroup
 from epac.argparse import ArgumentParser,RawTextHelpFormatter
 from epac.config import EpacConfig,EpacTrainerConfig
@@ -12,6 +13,7 @@ from epac.taxonomy_util import Taxonomy, GGTaxonomyFile, TaxTreeBuilder
 from epac.json_util import RefJsonBuilder
 from epac.erlang import tree_param 
 from epac.msa import hmmer
+from epac.classify_util import TaxTreeHelper
 
 class RefTreeBuilder:
     def __init__(self, config): 
@@ -152,28 +154,19 @@ class RefTreeBuilder:
     def save_rooting(self):
         rt = self.reftree_multif
 
+        tax_map = self.taxonomy.get_map()
+        self.taxtree_helper = TaxTreeHelper(tax_map)
+        self.taxtree_helper.set_mf_rooted_tree(rt)
+        outgr = self.taxtree_helper.get_outgroup()
+        outgr_size = len(outgr.get_leaves())
+        outgr.write(outfile=self.outgr_fname, format=9)
+        self.reftree_outgroup = outgr
+        if self.cfg.verbose:
+            print "Outgroup for rooting was saved to: %s, outgroup size: %d" % (self.outgr_fname, outgr_size)
+            
         # remove unifurcation at the root
         if len(rt.children) == 1:
             rt = rt.children[0]
-
-        if len(rt.children) > 1:
-            outgr = rt.children[0]    
-            outgr_size = len(outgr.get_leaves())
-            for child in rt.children:
-                if child != outgr:
-                    child_size = len(child.get_leaves())
-                    if child_size < outgr_size:
-                        outgr = child
-                        outgr_size = child_size
-        else:
-            print "Invalid tree: unifurcation at the root node!"
-            sys.exit()
-
-        
-        self.reftree_outgroup = outgr
-        outgr.write(outfile=self.outgr_fname, format=9)
-        if self.cfg.verbose:
-            print "Outgroup for rooting was saved to: " + self.outgr_fname + ", outgroup size: " + str(outgr_size)
         
         # now we can safely unroot the tree and remove internal node labels to make it suitable for raxml
         rt.write(outfile=self.reftree_mfu_fname, format=9)
@@ -254,74 +247,14 @@ class RefTreeBuilder:
                     % self.raxml_wrapper.make_raxml_fname("output", self.epalbl_job_name)
             sys.exit()        
 
-    def restore_rooting(self):
-        self.reftree_tax = Tree(self.reftree_lbl_str)
-        self.reftree_outgroup = Tree(self.outgr_fname)
-        outgr = self.reftree_outgroup
-        outgr_leaves = outgr.get_leaf_names()
-        # check if outgroup consists of a single node - ETE considers it to be root, not leaf
-        if not outgr_leaves:
-            outgr_root = self.reftree_tax&outgr.name
-        elif len(outgr_leaves) == 1:
-            outgr_root = self.reftree_tax&outgr_leaves[0]
-        else:
-            # Even unrooted tree is "implicitely" rooted in ETE representation.
-            # If this pseudo-rooting happens to be within the outgroup, it cause problems
-            # in the get_common_ancestor() step (since common_ancestor = "root")
-            # Workaround: explicitely root the tree outside from outgroup subtree
-            for node in self.reftree_tax.iter_leaves():
-                if not node.name in outgr_leaves:
-                    tmp_root = node.up
-                    if not self.reftree_tax == tmp_root:
-                        self.reftree_tax.set_outgroup(tmp_root)
-                        break
-            
-            outgr_root = self.reftree_tax.get_common_ancestor(outgr_leaves)
-
-        # we could be so lucky that the RAxML tree is already correctly rooted :)
-        if outgr_root != self.reftree_tax:
-            self.reftree_tax.set_outgroup(outgr_root)
-
+    def epa_post_process(self):
+        lbl_tree = Tree(self.reftree_lbl_str)
+        self.taxtree_helper.set_bf_unrooted_tree(lbl_tree)
+        self.reftree_tax = self.taxtree_helper.get_tax_tree()
+        self.bid_ranks_map = self.taxtree_helper.get_bid_taxonomy_map()
+        
         if self.cfg.debug:
-            #    t.show()
             self.reftree_tax.write(outfile=self.reftree_lbl_fname, format=5)
-
-    def label_reftree_with_ranks(self):
-        """labeling self.reftree_tax"""
-        for node in self.reftree_tax.traverse("postorder"):
-            if node.is_leaf():
-                seq_ranks = self.taxonomy.get_seq_ranks(node.name)
-                rank_level = self.taxonomy.lowest_assigned_rank_level(node.name)
-                node.add_feature("rank_level", rank_level)
-                node.add_feature("ranks", seq_ranks)
-                node.name += "__" + seq_ranks[rank_level]
-#                print node.name + " -- " + ";".join(node.ranks) + " -- " + str(node.rank_level)
-            else:
-                if len(node.children) != 2:
-                    print "FATAL ERROR: tree is not bifurcating!"
-                    sys.exit()
-                lchild = node.children[0]
-                rchild = node.children[1]
-                rank_level = min(lchild.rank_level, rchild.rank_level)
-#                if hasattr(node, "B"):
-#                    print node.B + " ---- " + str(rank_level) + " --- " + lchild.ranks[rank_level] + " --- " + rchild.ranks[rank_level]
-                while rank_level >= 0 and lchild.ranks[rank_level] != rchild.ranks[rank_level]:
-                    rank_level -= 1
-                node.add_feature("rank_level", rank_level)
-                node_ranks = [Taxonomy.EMPTY_RANK] * 7
-                if rank_level >= 0:
-                    node_ranks[0:rank_level+1] = lchild.ranks[0:rank_level+1]
-                    node.name = lchild.ranks[rank_level]
-                else:
-                    node.name = "Undefined"
-#                    print ";".join(lchild.ranks) + " -- " + ";".join(rchild.ranks) + " node_ranks: " + ";".join(node_ranks)
-                    if hasattr(node, "B") and self.cfg.verbose:
-                        print "INFO: no taxonomic annotation for branch %s (reason: children belong to different kingdoms)" % node.B
-
-                node.add_feature("ranks", node_ranks)
-
-        if self.cfg.debug:
-            #    t.show()
             self.reftree_tax.write(outfile=self.reftree_tax_fname, format=3)
 
     def build_branch_rank_map(self):
@@ -470,37 +403,35 @@ class RefTreeBuilder:
 
     # top-level function to build a reference tree    
     def build_ref_tree(self):
+        start_time = time.time()
         print "\n> Loading taxonomy from file: %s ...\n" % (self.cfg.taxonomy_fname)
         self.taxonomy = GGTaxonomyFile(self.cfg.taxonomy_fname, EpacConfig.REF_SEQ_PREFIX)
         print "\n=> Building a multifurcating tree from taxonomy with %d seqs ...\n" % self.taxonomy.seq_count()
         self.validate_taxonomy()
         self.build_multif_tree()
-        print "\n==> Building the reference alignment " + "...\n"
+        print "\n==> Building the reference alignment ...\n"
         self.export_ref_alignment()
         self.export_ref_taxonomy()
-        print "\n===> Saving the outgroup for later re-rooting " + "...\n"
+        print "\n===> Saving the outgroup for later re-rooting ...\n"
         self.save_rooting()
-        print "\n====> RAxML call: resolve multifurcation " + "...\n"
+        print "\n====> RAxML call: resolve multifurcation ...\n"
         self.resolve_multif()
         self.load_reduced_refalign()
-        print "\n=====> RAxML-EPA call: labeling the branches " + "...\n"
+        print "\n=====> RAxML-EPA call: labeling the branches ...\n"
         self.epa_branch_labeling()
-        print "\n======> Re-rooting the reference tree" + "...\n"
-        self.restore_rooting()
-        print "\n=======> Labeling the reference tree with taxonomic ranks" + "...\n"
-        self.label_reftree_with_ranks()
-        print "\n========> Building the mapping between EPA branch labels and ranks" + "...\n"
-        self.build_branch_rank_map()
+        print "\n======> Post-processing the EPA tree (re-rooting, taxonomic labeling etc.) ...\n"
+        self.epa_post_process()
         self.calc_node_heights()
         
         if self.cfg.verbose:
-            print "\n=========> Checking branch labels ...\n"
+            print "\n=======> Checking branch labels ...\n"
             print "shared rank names before training: " + repr(self.taxonomy.get_common_ranks())
             print "shared rank names after  training: " + repr(self.mono_index())
         
-        print "\n=========> Saving the reference JSON file" + "...\n"
+        print "\n=======> Saving the reference JSON file ...\n"
         self.write_json()
-        print "\n***********  Done!  **********\n"
+        elapsed_time = time.time() - start_time
+        print "\n***********  Done! (%.0f s) **********\n" % elapsed_time
 
 def parse_args():
     parser = ArgumentParser(description="Build a reference tree for EPA taxonomic placement.",

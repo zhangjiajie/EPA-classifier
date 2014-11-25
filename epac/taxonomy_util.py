@@ -27,7 +27,9 @@ class Taxonomy:
         return ranks[rank_level]
         
     @staticmethod    
-    def get_rank_uid(ranks, rank_level):
+    def get_rank_uid(ranks, rank_level=-1):
+        if rank_level == -1:
+            rank_level = Taxonomy.lowest_assigned_rank_level(ranks)        
         return Taxonomy.RANK_UID_DELIM.join(ranks[:rank_level+1])
 
     @staticmethod    
@@ -57,7 +59,11 @@ class GGTaxonomyFile(Taxonomy):
     def strip_prefix(ranks):
         new_ranks = ['']*len(ranks);
         for i in range(len(ranks)):
-            new_ranks[i] = ranks[i].lstrip(GGTaxonomyFile.rank_placeholders[i])
+            if ranks[i].startswith(GGTaxonomyFile.rank_placeholders[i]):
+                plen = len(GGTaxonomyFile.rank_placeholders[i])
+                new_ranks[i] = ranks[i][plen:]
+            else:
+                new_ranks[i] = ranks[i]
         return new_ranks
 
     @staticmethod
@@ -141,7 +147,7 @@ class GGTaxonomyFile(Taxonomy):
     def iteritems(self):
         return self.seq_ranks_map.items()
 
-    def map(self):
+    def get_map(self):
         return self.seq_ranks_map
 
     def remove_seq(self, seqid):

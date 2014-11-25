@@ -194,7 +194,7 @@ class EpaClassifier:
         for place in placements:
             output = None
             taxon_name = place["n"][0]
-            origin_taxon_name = taxon_name.lstrip(EpacConfig.QUERY_SEQ_PREFIX)
+            origin_taxon_name = EpacConfig.strip_query_prefix(taxon_name)
             edges = place["p"]
             edges = self.erlang_filter(edges, p = pv)
             if len(edges) > 0:
@@ -223,7 +223,7 @@ class EpaClassifier:
                 lines = fnoa.readlines()
                 for line in lines:
                     taxon_name = line.strip()[1:]
-                    origin_taxon_name = taxon_name.lstrip(EpacConfig.QUERY_SEQ_PREFIX)
+                    origin_taxon_name = EpacConfig.strip_query_prefix(taxon_name)
                     output = "%s\t\t\t?" % origin_taxon_name
                     if self.cfg.verbose:
                         print(output)
@@ -257,7 +257,7 @@ class EpaClassifier:
             for sp_cluster in species_list:
                 translated_taxa = []
                 for taxon in sp_cluster:
-                    origin_taxon_name = taxon.lstrip(EpacConfig.QUERY_SEQ_PREFIX)
+                    origin_taxon_name = EpacConfig.strip_query_prefix(taxon)
                     translated_taxa.append(origin_taxon_name)
                 s = ",".join(translated_taxa)
                 if fo2:
