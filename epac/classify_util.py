@@ -2,8 +2,9 @@
 from epac.taxonomy_util import Taxonomy
 
 class TaxTreeHelper:
-    def __init__(self, tax_map):
+    def __init__(self, tax_map, cfg):
         self.origin_taxonomy = tax_map
+        self.cfg = cfg
         self.outgroup = None
         self.mf_rooted_tree = None
         self.bf_rooted_tree = None

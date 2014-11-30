@@ -227,13 +227,13 @@ class LeaveOneTest:
                 fields += ["HigherRankMisplacedConfidence"]
             header = ";" + "\t".join(fields) + "\n"
             fo_all.write(header)
-            if self.cfg.verbose and len(self.mislabels) > 0:
+            if self.cfg.verbose and len(self.mislabels) > 0 and final:
                 print "Mislabeled sequences:\n"
                 print header 
             for mis_rec in self.mislabels:
                 output = self.mis_rec_to_string(mis_rec)  + "\n"
                 fo_all.write(output)
-                if self.cfg.verbose:
+                if self.cfg.verbose and final:
                     print(output) 
                     
         if not final:
@@ -396,7 +396,7 @@ class LeaveOneTest:
             
         self.mislabels = []
 
-        th = TaxTreeHelper(self.origin_taxonomy)
+        th = TaxTreeHelper(self.origin_taxonomy, self.cfg)
         th.set_mf_rooted_tree(tmp_taxtree)
             
         self.run_epa_once(tmp_reftree, th)
