@@ -393,6 +393,10 @@ class LeaveOneTest:
                 leaf_nodes[0].delete()
             else:
                 print "Node not found in the taxonomic tree: %s" % rname
+
+        # remove unifurcation at the root
+        if len(tmp_reftree.children) == 1:
+            tmp_reftree = tmp_reftree.children[0]
             
         self.mislabels = []
 
