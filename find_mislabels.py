@@ -27,6 +27,9 @@ class LeaveOneTest:
         self.ranktest = args.ranktest
         self.output_fname = args.output_dir + "/" + args.output_name
 
+        # switch off branch length filter
+        self.brlen_pv = 0.
+
         self.tmp_refaln = config.tmp_fname("%NAME%.refaln")
         self.reftree_lbl_fname = config.tmp_fname("%NAME%_lbl.tre")
         self.reftree_tax_fname = config.tmp_fname("%NAME%_tax.tre")
@@ -57,8 +60,8 @@ class LeaveOneTest:
         if self.cfg.epa_load_optmod:
             self.cfg.raxml_model = self.refjson.get_ratehet_model()
         
-        self.classify_helper = TaxClassifyHelper(self.cfg, self.bid_taxonomy_map)
-
+        self.classify_helper = TaxClassifyHelper(self.cfg, self.bid_taxonomy_map, self.brlen_pv, self.rate, self.node_height)
+        
         self.TAXONOMY_RANKS_COUNT = 10
         self.mislabels = []
         self.mislabels_cnt = [0] * self.TAXONOMY_RANKS_COUNT
@@ -412,7 +415,9 @@ class LeaveOneTest:
 
         reftree.write(outfile=reftree_fname)
 
-        epa_result = self.raxml.run_epa(job_name, self.refalign_fname, reftree_fname, self.optmod_fname)
+        # IMPORTANT: don't load the model, since it's invalid for the pruned true !!! 
+        optmod_fname=""
+        epa_result = self.raxml.run_epa(job_name, self.refalign_fname, reftree_fname, optmod_fname)
         reftree_epalbl_str = epa_result.get_std_newick_tree()        
         placements = epa_result.get_placement()
         
@@ -421,7 +426,7 @@ class LeaveOneTest:
         th.set_bf_unrooted_tree(reftree_tax)
         bid_tax_map = th.get_bid_taxonomy_map()
         
-        cl = TaxClassifyHelper(self.cfg, bid_tax_map)
+        cl = TaxClassifyHelper(self.cfg, bid_tax_map, self.brlen_pv, self.rate, self.node_height)
 
         for place in placements:
             seq_name = place["n"][0]
@@ -502,6 +507,8 @@ def parse_args():
             help="""Assignment method 1 or 2
                     1: Max sum likelihood (default)
                     2: Max likelihood placement""")
+#    parser.add_argument("-p", dest="p_value", type=float, default=0.001,
+#            help="""P-value for branch length Erlang test. Default: 0.001\n""")
     parser.add_argument("-ranktest", dest="ranktest", action="store_true",
             help="""Test for misplaced higher ranks.""")
     parser.add_argument("-T", dest="num_threads", type=int, default=None,
@@ -546,12 +553,13 @@ def check_args(args):
         
 def print_run_info(config, args):
     print("Mislabels search is running with the following parameters:")
-    print(" Reference:......................%s" % args.ref_fname)
+    print(" Reference:........................%s" % args.ref_fname)
     if args.jplace_fname:
-        print(" EPA jplace file:................%s" % args.jplace_fname)
-    print(" Min likelihood weight:..........%f" % args.min_lhw)
-    print(" Assignment method:..............%s" % args.method)
-    print(" Number of threads:..............%d" % config.num_threads)
+        print(" EPA jplace file:..................%s" % args.jplace_fname)
+    print(" Number of threads:................%d" % config.num_threads)
+    print(" Min likelihood weight:............%f" % args.min_lhw)
+    print(" Assignment method:................%s" % args.method)
+#    print(" P-value for branch length test:...%f" % args.p_value)
     print("Result will be written to:")
     print(args.output_dir)
     print("")

@@ -10,7 +10,6 @@ try:
     from epac.raxml_util import RaxmlWrapper, FileUtils
     from epac.json_util import RefJsonParser, RefJsonChecker, EpaJsonParser
     from epac.msa import muscle, hmmer
-    from epac.erlang import erlang
     from epac.taxonomy_util import Taxonomy
     from epac.classify_util import TaxClassifyHelper
 except ImportError, e:
@@ -46,8 +45,7 @@ class EpaClassifier:
         self.node_height = self.refjson.get_node_height()
         self.cfg.compress_patterns = self.refjson.get_pattern_compression()
 
-        self.erlang = erlang()
-        self.classify_helper = TaxClassifyHelper(self.cfg, self.bid_taxonomy_map)
+        self.classify_helper = TaxClassifyHelper(self.cfg, self.bid_taxonomy_map, args.p_value, self.rate, self.node_height)
 
     def cleanup(self):
         FileUtils.remove_if_exists(self.tmp_refaln)
@@ -196,7 +194,7 @@ class EpaClassifier:
             taxon_name = place["n"][0]
             origin_taxon_name = EpacConfig.strip_query_prefix(taxon_name)
             edges = place["p"]
-            edges = self.erlang_filter(edges, p = pv)
+#            edges = self.erlang_filter(edges, p = pv)
             if len(edges) > 0:
                 ranks, lws = self.classify_helper.classify_seq(edges, method, minlw)
                 
@@ -276,18 +274,6 @@ class EpaClassifier:
                 FileUtils.remove_if_exists(reftree_fname)
                 FileUtils.remove_if_exists(optmod_fname)
 
-
-    def erlang_filter(self, edges, p = 0.02):
-        newedges = []
-        for edge in edges:
-            edge_nr = str(edge[0])
-            pendant_length = edge[4]
-            pv = self.erlang.one_tail_test(rate = self.rate, k = int(self.node_height[edge_nr]), x = pendant_length)
-            if pv >= p:
-                newedges.append(edge)
-        return newedges
-
-
     def novelty_check(self, place_edge, ranks, lws, minlw):
         """If the taxonomic assignment is not assigned to the genus level, 
         we need to check if it is due to the incomplete reference taxonomy or 
@@ -350,7 +336,7 @@ def print_options():
     print("                                   dence measure of the assignment,  assignments  below  this value")
     print("                                   will be discarded. Default: 0 to output all possbile assignments.\n")
     print("    -o outputfile                  Specify the file name for output.\n")
-    print("    -p p-value                     P-value for Erlang test.  Default: 0.02\n")
+    print("    -p p-value                     P-value for branch length Erlang test. Default: 0.02\n")
     print("    -minalign min-aligned%         Minimal percent of aligned sites.  Default: 0.9 (90%)\n")
     print("    -m method                      Assignment method 1 or 2")
     print("                                   1: Max sum likelihood (default)")
@@ -402,8 +388,8 @@ def parse_args():
             help="""Directory for result files  (default: same as query file directory)""")
     parser.add_argument("-n", dest="output_name", default=None,
             help="""Run name, will be used to name result files.""")
-    parser.add_argument("-p", dest="p_value", type=float, default=0.02,
-            help="""P-value for Erlang test.  Default: 0.02""")
+    parser.add_argument("-p", dest="p_value", type=float, default=0.001,
+            help="""P-value for branch length Erlang test. Default: 0.02\n""")
     parser.add_argument("-minalign", dest="minalign", type=float, default=0.9,
             help="""Minimal percent of the sites aligned to the reference alignment.  Default: 0.9""")
     parser.add_argument("-m", dest="method", default="1",

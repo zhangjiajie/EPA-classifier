@@ -1,5 +1,7 @@
 #! /usr/bin/env python
 from epac.taxonomy_util import Taxonomy
+from epac.erlang import erlang
+import math
 
 class TaxTreeHelper:
     def __init__(self, tax_map, cfg):
@@ -127,12 +129,17 @@ class TaxTreeHelper:
 
     
 class TaxClassifyHelper:
-    def __init__(self, cfg, bid_taxonomy_map):
+    def __init__(self, cfg, bid_taxonomy_map, brlen_pv = 0., sp_rate = 0., node_height = []):
         self.cfg = cfg
         self.bid_taxonomy_map = bid_taxonomy_map
+        self.brlen_pv = brlen_pv
+        self.sp_rate = sp_rate
+        self.node_height = node_height
+        self.erlang = erlang()
 
     def classify_seq(self, edges, method = "1", minlw = 0.):
         if len(edges) > 0:
+            edges = self.erlang_filter(edges)
             if method == "1":
                 ranks, lws = self.assign_taxonomy_maxsum(edges, minlw)
             else:
@@ -140,6 +147,34 @@ class TaxClassifyHelper:
             return ranks, lws
         else:
             return None, None      
+            
+    def erlang_filter(self, edges):
+        if self.brlen_pv == 0.:
+            return edges
+            
+        newedges = []
+        for edge in edges:
+            edge_nr = str(edge[0])
+            pendant_length = edge[4]
+            pv = self.erlang.one_tail_test(rate = self.sp_rate, k = int(self.node_height[edge_nr]), x = pendant_length)
+            if pv >= self.brlen_pv:
+                newedges.append(edge)
+        
+        if len(newedges) == 0:
+            return newedges
+        
+        # adjust likelihood weights -> is there a better way ???        
+        sum_lh = 0
+        max_lh = float(newedges[0][1])
+        for edge in newedges:
+            lh = float(edge[1])
+            sum_lh += math.exp(lh - max_lh)
+                        
+        for edge in newedges:
+            lh = float(edge[1])
+            edge[2] = math.exp(lh - max_lh) / sum_lh
+
+        return newedges
      
     def assign_taxonomy_maxlh(self, edges):
         #Calculate the sum of likelihood weight for each rank
@@ -198,6 +233,8 @@ class TaxClassifyHelper:
         rw_own = {}
         rw_total = {}
         rb = {}
+        
+        ranks = [Taxonomy.EMPTY_RANK]
         
         for edge in edges:
             br_id = str(edge[0])
