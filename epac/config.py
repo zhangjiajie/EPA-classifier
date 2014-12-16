@@ -113,11 +113,12 @@ class EpacConfig:
             print "WARNING: You're using GTRGAMMA model on a very large dataset (%d taxa), which might lead to numerical issues!" % tree_size
             print "In case of problems, please consider switching to GTRCAT model.\n"
 
-        if self.epa_use_heuristic == "AUTO" and tree_size > EpacConfig.EPA_HEUR_THRES:
-            self.epa_use_heuristic == "TRUE"
-            self.epa_heur_rate = 0.5 * float(EpacConfig.EPA_HEUR_THRES) / tree_size
-        else:
-            self.epa_use_heuristic == "FALSE"
+        if self.epa_use_heuristic == "AUTO": 
+            if tree_size > EpacConfig.EPA_HEUR_THRES:
+                self.epa_use_heuristic = "TRUE"
+                self.epa_heur_rate = 0.5 * float(EpacConfig.EPA_HEUR_THRES) / tree_size
+            else:
+                self.epa_use_heuristic = "FALSE"
 
     def resolve_relative_path(self, rpath):
         if rpath.startswith("/"):
